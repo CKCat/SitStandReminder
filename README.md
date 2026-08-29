@@ -108,13 +108,14 @@ SitStandReminder/
 ├── README.md                      # 项目说明文档
 ├── resources/
 │   ├── app.ico                    # 7级多分辨率原生应用图标 (16x16 ~ 256x256)
-│   ├── app.manifest               # Common Controls 6.0 与 Per-Monitor DPI v2 清单
-│   ├── app.rc                     # Windows 资源脚本 (版本号 1.0.1.0)
+│   ├── app.manifest.in            # Common Controls 6.0 与 Per-Monitor DPI v2 清单模板
+│   ├── app.rc.in                  # Windows 资源脚本模板 (自动注入 CMake 版本号)
 │   └── resource.h                 # 资源 ID 定义头文件
 ├── src/
 │   ├── main.cpp                   # 程序入口、单实例 Mutex、主消息泵与 EcoQoS
 │   ├── core/
 │   │   ├── AppConstants.hpp       # 全局标识、预设表与单一事实源常量 (SSOT)
+│   │   ├── Version.hpp.in         # 版本号 C++ 头文件模板 (自动生成 Version.hpp)
 │   │   ├── ConfigManager.hpp      # 配置模型与注册表持久化管理
 │   │   ├── ConfigManager.cpp
 │   │   ├── StateMachine.hpp       # 核心时钟状态机 (Work / Stand / Rest / Pause)

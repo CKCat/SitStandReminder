@@ -19,7 +19,25 @@ if(MSVC)
     set(CMAKE_EXE_LINKER_FLAGS_RELEASE "${CMAKE_EXE_LINKER_FLAGS_RELEASE} /LTCG /OPT:REF /OPT:ICF")
 endif()
 
-include_directories(src resources)
+include_directories(src resources ${CMAKE_CURRENT_BINARY_DIR}/generated)
+
+# 自动生成版本控制文件 (Single Source of Truth from project VERSION)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/generated)
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/Version.hpp.in
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/Version.hpp
+    @ONLY
+)
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/resources/app.rc.in
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/app.rc
+    @ONLY
+)
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/resources/app.manifest.in
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/app.manifest
+    @ONLY
+)
 
 # 核心源码
 set(CORE_SOURCES
@@ -54,7 +72,7 @@ add_subdirectory(tests)
 # 主可执行程序
 add_executable(SitStandReminder WIN32
     src/main.cpp
-    resources/app.rc
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/app.rc
     ${CORE_SOURCES}
     ${PLATFORM_SOURCES}
     ${GRAPHICS_SOURCES}
@@ -79,7 +97,7 @@ target_link_libraries(SitStandReminder PRIVATE
 if(MSVC)
     target_link_options(SitStandReminder PRIVATE
         "/MANIFEST:EMBED"
-        "/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/resources/app.manifest"
+        "/MANIFESTINPUT:${CMAKE_CURRENT_BINARY_DIR}/generated/app.manifest"
     )
 endif()
 

@@ -4,12 +4,12 @@
 #pragma code_page(65001)
 
 // 1. Core Application Icon (IDI_APP_ICON = 101)
-IDI_APP_ICON    ICON    "app.ico"
+IDI_APP_ICON    ICON    "@CMAKE_CURRENT_SOURCE_DIR@/resources/app.ico"
 
-// 2. Version Information
+// 2. Version Information (Single Source of Truth from CMakeLists.txt)
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     1,0,1,0
-PRODUCTVERSION  1,0,1,0
+FILEVERSION     @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
+PRODUCTVERSION  @PROJECT_VERSION_MAJOR@,@PROJECT_VERSION_MINOR@,@PROJECT_VERSION_PATCH@,0
 FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
 FILEFLAGS       VS_FF_DEBUG
@@ -26,12 +26,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "CKCat Studio"
             VALUE "FileDescription",  "SitStandReminder - Scientific Sit-Stand & Ergonomic Assistant"
-            VALUE "FileVersion",      "1.0.1.0"
+            VALUE "FileVersion",      "@PROJECT_VERSION@.0"
             VALUE "InternalName",     "SitStandReminder"
             VALUE "LegalCopyright",   "Copyright (C) 2026 CKCat. All rights reserved."
             VALUE "OriginalFilename", "SitStandReminder.exe"
             VALUE "ProductName",      "SitStandReminder"
-            VALUE "ProductVersion",   "1.0.1.0"
+            VALUE "ProductVersion",   "@PROJECT_VERSION@"
         END
     END
     BLOCK "VarFileInfo"
@@ -39,3 +39,4 @@ BEGIN
         VALUE "Translation", 0x0409, 1200
     END
 END
+
