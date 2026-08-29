@@ -15,6 +15,8 @@ namespace AppConstants {
 namespace Identity {
     inline constexpr const wchar_t* NAME               = L"SitStandReminder";
     inline constexpr const wchar_t* DISPLAY_NAME       = L"坐立提醒";
+    inline constexpr const wchar_t* VERSION_STR        = L"1.0.1";
+    inline constexpr const wchar_t* VERSION_FULL       = L"1.0.1.0";
     inline constexpr const wchar_t* SLOGAN             = L"科学坐立与工位健康伴侣";
     inline constexpr const wchar_t* MUTEX_NAME         = L"SitStandReminderSingleInstanceMutex";
     inline constexpr const wchar_t* REGISTRY_KEY_PATH  = L"Software\\SitStandReminder";

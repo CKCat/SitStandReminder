@@ -109,7 +109,7 @@ SitStandReminder/
 ├── resources/
 │   ├── app.ico                    # 7级多分辨率原生应用图标 (16x16 ~ 256x256)
 │   ├── app.manifest               # Common Controls 6.0 与 Per-Monitor DPI v2 清单
-│   ├── app.rc                     # Windows 资源脚本 (版本号 1.0.0.0)
+│   ├── app.rc                     # Windows 资源脚本 (版本号 1.0.1.0)
 │   └── resource.h                 # 资源 ID 定义头文件
 ├── src/
 │   ├── main.cpp                   # 程序入口、单实例 Mutex、主消息泵与 EcoQoS

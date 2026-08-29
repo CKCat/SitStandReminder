@@ -8,8 +8,8 @@ IDI_APP_ICON    ICON    "app.ico"
 
 // 2. Version Information
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     1,0,0,0
-PRODUCTVERSION  1,0,0,0
+FILEVERSION     1,0,1,0
+PRODUCTVERSION  1,0,1,0
 FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
 FILEFLAGS       VS_FF_DEBUG
@@ -26,12 +26,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName",      "CKCat Studio"
             VALUE "FileDescription",  "SitStandReminder - Scientific Sit-Stand & Ergonomic Assistant"
-            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "FileVersion",      "1.0.1.0"
             VALUE "InternalName",     "SitStandReminder"
             VALUE "LegalCopyright",   "Copyright (C) 2026 CKCat. All rights reserved."
             VALUE "OriginalFilename", "SitStandReminder.exe"
             VALUE "ProductName",      "SitStandReminder"
-            VALUE "ProductVersion",   "1.0.0.0"
+            VALUE "ProductVersion",   "1.0.1.0"
         END
     END
     BLOCK "VarFileInfo"
