@@ -130,7 +130,9 @@ void FloatingWindow::RepositionDefault() {
     int posX = workArea.right - scaledW - static_cast<int>(20 * scale);
     int posY = workArea.bottom - scaledH - static_cast<int>(20 * scale);
 
-    SetWindowPos(m_hwnd, HWND_TOPMOST, posX, posY, scaledW, scaledH, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    auto& config = ConfigManager::Instance().GetConfig();
+    HWND insertAfter = config.alwaysTopMost ? HWND_TOPMOST : HWND_NOTOPMOST;
+    SetWindowPos(m_hwnd, insertAfter, posX, posY, scaledW, scaledH, SWP_NOACTIVATE | SWP_SHOWWINDOW);
     m_dockState = DockState::Floating;
     Render();
 }
@@ -165,20 +167,20 @@ void FloatingWindow::ClampToWorkArea() {
     if (m_dockState == DockState::DockedLeft_Collapsed) {
         int targetX = workArea.left - (w - tabWidth);
         int y = std::clamp<int>(winRc.top, workArea.top, (std::max<int>)(workArea.top, workArea.bottom - h));
-        SetWindowPos(m_hwnd, HWND_TOPMOST, targetX, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+        SetWindowPos(m_hwnd, nullptr, targetX, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
     } else if (m_dockState == DockState::DockedRight_Collapsed) {
         int targetX = workArea.right - tabWidth;
         int y = std::clamp<int>(winRc.top, workArea.top, (std::max<int>)(workArea.top, workArea.bottom - h));
-        SetWindowPos(m_hwnd, HWND_TOPMOST, targetX, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+        SetWindowPos(m_hwnd, nullptr, targetX, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
     } else if (m_dockState == DockState::DockedTop_Collapsed) {
         int x = std::clamp<int>(winRc.left, workArea.left, (std::max<int>)(workArea.left, workArea.right - w));
         int targetY = workArea.top - (h - tabHeight);
-        SetWindowPos(m_hwnd, HWND_TOPMOST, x, targetY, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+        SetWindowPos(m_hwnd, nullptr, x, targetY, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
     } else {
         int x = std::clamp<int>(winRc.left, workArea.left, (std::max<int>)(workArea.left, workArea.right - w));
         int y = std::clamp<int>(winRc.top, workArea.top, (std::max<int>)(workArea.top, workArea.bottom - h));
         if (x != winRc.left || y != winRc.top) {
-            SetWindowPos(m_hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+            SetWindowPos(m_hwnd, nullptr, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
         }
     }
 }
@@ -252,19 +254,19 @@ void FloatingWindow::CheckEdgeDock(bool isFinal) {
 
     if (pushLeft) {
         if (isFinal) {
-            SetWindowPos(m_hwnd, HWND_TOPMOST, workArea.left, winRc.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+            SetWindowPos(m_hwnd, nullptr, workArea.left, winRc.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
         }
         m_dockState = DockState::DockedLeft_Expanded;
         m_outsideTicks = 0;
     } else if (pushRight) {
         if (isFinal) {
-            SetWindowPos(m_hwnd, HWND_TOPMOST, workArea.right - w, winRc.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+            SetWindowPos(m_hwnd, nullptr, workArea.right - w, winRc.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
         }
         m_dockState = DockState::DockedRight_Expanded;
         m_outsideTicks = 0;
     } else if (pushTop) {
         if (isFinal) {
-            SetWindowPos(m_hwnd, HWND_TOPMOST, winRc.left, workArea.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+            SetWindowPos(m_hwnd, nullptr, winRc.left, workArea.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
         }
         m_dockState = DockState::DockedTop_Expanded;
         m_outsideTicks = 0;
@@ -272,19 +274,19 @@ void FloatingWindow::CheckEdgeDock(bool isFinal) {
     // 2. 【判定意图 2：在屏幕内靠近边缘 (0 ~ 20px) 释放 -> 磁吸对齐常驻，保持展开绝不自动折叠 (Snapped_*)】
     else if (winRc.left <= workArea.left + snapThreshold) {
         if (isFinal) {
-            SetWindowPos(m_hwnd, HWND_TOPMOST, workArea.left, winRc.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+            SetWindowPos(m_hwnd, nullptr, workArea.left, winRc.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
         }
         m_dockState = DockState::Snapped_Left;
         m_outsideTicks = 0;
     } else if (winRc.right >= workArea.right - snapThreshold) {
         if (isFinal) {
-            SetWindowPos(m_hwnd, HWND_TOPMOST, workArea.right - w, winRc.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+            SetWindowPos(m_hwnd, nullptr, workArea.right - w, winRc.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
         }
         m_dockState = DockState::Snapped_Right;
         m_outsideTicks = 0;
     } else if (winRc.top <= workArea.top + snapThreshold) {
         if (isFinal) {
-            SetWindowPos(m_hwnd, HWND_TOPMOST, winRc.left, workArea.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+            SetWindowPos(m_hwnd, nullptr, winRc.left, workArea.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
         }
         m_dockState = DockState::Snapped_Top;
         m_outsideTicks = 0;
@@ -351,9 +353,9 @@ void FloatingWindow::OnAnimationTick() {
     GetWindowRect(m_hwnd, &winRc);
 
     if (m_animIsHorizontal) {
-        SetWindowPos(m_hwnd, HWND_TOPMOST, currentPos, winRc.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+        SetWindowPos(m_hwnd, nullptr, currentPos, winRc.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
     } else {
-        SetWindowPos(m_hwnd, HWND_TOPMOST, winRc.left, currentPos, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+        SetWindowPos(m_hwnd, nullptr, winRc.left, currentPos, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
     }
 
     Render();

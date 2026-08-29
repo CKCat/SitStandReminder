@@ -471,11 +471,10 @@ LRESULT CALLBACK TrayWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM 
                 } else if (LOWORD(lParam) == WM_RBUTTONUP) {
                     TrayWindow::Instance().ShowContextMenu();
                 } else if (LOWORD(lParam) == WM_LBUTTONUP) {
-                    // 左键单击：唤醒并前置桌面微件/悬浮窗
+                    // 左键单击：唤醒并展示桌面微件/悬浮窗（严格遵循用户 alwaysTopMost 配置）
+                    FloatingWindow::Instance().Show(true);
                     HWND hFloat = FloatingWindow::Instance().GetHwnd();
                     if (hFloat && IsWindow(hFloat)) {
-                        ShowWindow(hFloat, SW_SHOW);
-                        SetWindowPos(hFloat, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW);
                         SetForegroundWindow(hFloat);
                     }
                 }
