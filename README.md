@@ -84,16 +84,16 @@
 
 ## 🏗️ 架构与技术栈
 
-| 模块 | 技术选型 | 核心优势 |
-| :--- | :--- | :--- |
-| **编程语言** | C++20 (MSVC / ISO C++20) | 强类型枚举、智能指针、`std::chrono`、RAII 安全 |
-| **核心状态机** | `StateMachine` | 坐姿工作 $\leftrightarrow$ 站立办公 $\leftrightarrow$ 全屏工间操，时钟绝对物理对齐 |
-| **图形渲染** | Direct2D 1.1 / DirectWrite / GDI DIBSection | GPU 硬件抗锯齿加速、DirectWrite 字体缓存池、异形分层透明窗口 |
-| **系统合成** | DWM (Desktop Window Manager) | `UpdateLayeredWindow` 硬件 Alpha 混合、沉浸式深浅色标题栏 |
-| **高分屏** | Per-Monitor DPI Aware v2 | 动态 DPI 缩放换算（100%、125%、150%、175%、200%）自适应 |
-| **输入拦截** | Win32 Low-Level Keyboard Hook | 异步安全消息解耦、`ESC` 紧急解锁 |
-| **配置存储** | Windows Registry (`HKEY_CURRENT_USER`) | 零额外文件依赖、原子级读写、开机自启原生集成 |
-| **构建系统** | CMake 3.20+ / GitHub Actions CI | 自动编译、单元测试、打包发布并生成 SHA256 校验 |
+| 模块           | 技术选型                                    | 核心优势                                                                           |
+| :------------- | :------------------------------------------ | :--------------------------------------------------------------------------------- |
+| **编程语言**   | C++20 (MSVC / ISO C++20)                    | 强类型枚举、智能指针、`std::chrono`、RAII 安全                                     |
+| **核心状态机** | `StateMachine`                              | 坐姿工作 $\leftrightarrow$ 站立办公 $\leftrightarrow$ 全屏工间操，时钟绝对物理对齐 |
+| **图形渲染**   | Direct2D 1.1 / DirectWrite / GDI DIBSection | GPU 硬件抗锯齿加速、DirectWrite 字体缓存池、异形分层透明窗口                       |
+| **系统合成**   | DWM (Desktop Window Manager)                | `UpdateLayeredWindow` 硬件 Alpha 混合、沉浸式深浅色标题栏                          |
+| **高分屏**     | Per-Monitor DPI Aware v2                    | 动态 DPI 缩放换算（100%、125%、150%、175%、200%）自适应                            |
+| **输入拦截**   | Win32 Low-Level Keyboard Hook               | 异步安全消息解耦、`ESC` 紧急解锁                                                   |
+| **配置存储**   | Windows Registry (`HKEY_CURRENT_USER`)      | 零额外文件依赖、原子级读写、开机自启原生集成                                       |
+| **构建系统**   | CMake 3.20+ / GitHub Actions CI             | 自动编译、单元测试、打包发布并生成 SHA256 校验                                     |
 
 ---
 
@@ -186,6 +186,14 @@ cmake --build build --config Release
 
 - 最新发行版二进制资产可前往 [GitHub Releases](https://github.com/CKCat/SitStandReminder/releases) 页面下载绿色免安装 ZIP 压缩包；
 - 每次向 `main` 分支提交代码均由 GitHub Actions 自动化编译测试并生成最新构建产物。
+
+---
+
+## 💡 灵感来源与致谢 (Acknowledgements)
+
+本项目基于开源项目 [**CKCat/Sedentary-reminder**](https://github.com/CKCat/Sedentary-reminder) 的核心工效健康循环思路与产品理念演进实现。
+
+在继承其优秀交互概念的基础上，本项目采用 **现代 C++20 + Pure Win32 + Direct2D** 进行了 100% 底层纯原生重构，致力于在 Windows 平台上实现 **单文件免安装、极低内存（<3MB）、GPU 硬件加速与零外部依赖** 的极致原生性能体验。
 
 ---
 
