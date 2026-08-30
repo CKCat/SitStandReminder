@@ -33,6 +33,9 @@ private:
     void CreateControls(HWND hwnd);
     void UpdateLayout(float dpiScale);
     void SaveConfigFromUI();
+    ReminderConfig GetConfigFromUI() const;
+    void UpdateDirtyState();
+    void CleanRegistryAndExit();
     void DrawModernButton(LPDRAWITEMSTRUCT pDis, bool isDark);
     void DrawModernComboBox(LPDRAWITEMSTRUCT pDis, bool isDark);
     void DrawModernCheckBox(LPDRAWITEMSTRUCT pDis, bool isDark);
@@ -42,6 +45,8 @@ private:
     HWND m_hwnd = nullptr;
     HWND m_hTooltip = nullptr;
     bool m_isUpdatingTheme = false;
+    bool m_isLoading = false;
+    ReminderConfig m_originalConfig;
 
     // 分组标题
     HWND m_hGroupPreset = nullptr;
@@ -86,6 +91,7 @@ private:
     
     HWND m_hBtnSave = nullptr;
     HWND m_hBtnCancel = nullptr;
+    HWND m_hBtnClean = nullptr;
 
     HFONT m_hFont = nullptr;
     HFONT m_hBoldFont = nullptr;

@@ -23,6 +23,7 @@ extern StateMachine* g_pStateMachine;
 #define IDC_BTN_PRESET4   3004
 #define IDC_BTN_SAVE      3005
 #define IDC_BTN_CANCEL    3006
+#define IDC_BTN_CLEAN     3018
 #define IDC_COMBO_MODE    3007
 #define IDC_COMBO_THEME   3008
 #define IDC_COMBO_MASCOT  3009
@@ -245,6 +246,7 @@ void SettingsWindow::CreateControls(HWND hwnd) {
     m_hChkEdgeDock = CreateWindowW(L"BUTTON", L"开启屏幕边缘吸附折叠", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_CHK_EDGEDOCK), m_hInstance, nullptr);
 
     // 5. 底部操作按钮
+    m_hBtnClean = CreateWindowW(L"BUTTON", L"🗑️ 清理配置", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_BTN_CLEAN), m_hInstance, nullptr);
     m_hBtnSave = CreateWindowW(L"BUTTON", L"✔ 保存并应用", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_BTN_SAVE), m_hInstance, nullptr);
     m_hBtnCancel = CreateWindowW(L"BUTTON", L"关闭", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_BTN_CANCEL), m_hInstance, nullptr);
 
@@ -347,7 +349,8 @@ void SettingsWindow::UpdateLayout(float dpiScale) {
     SetWindowPos(m_hChkEdgeDock, nullptr, S(256), S(482), S(216), S(22), SWP_NOZORDER);
 
     // 5. 底部操作按钮 (留足 26px 呼吸底边距)
-    SetWindowPos(m_hBtnSave, nullptr, S(256), S(528), S(130), S(34), SWP_NOZORDER);
+    SetWindowPos(m_hBtnClean, nullptr, S(24), S(528), S(116), S(34), SWP_NOZORDER);
+    SetWindowPos(m_hBtnSave, nullptr, S(266), S(528), S(120), S(34), SWP_NOZORDER);
     SetWindowPos(m_hBtnCancel, nullptr, S(394), S(528), S(78), S(34), SWP_NOZORDER);
 
     // 应用字体
@@ -383,6 +386,7 @@ void SettingsWindow::DrawModernButton(LPDRAWITEMSTRUCT pDis, bool isDark) {
     RECT rc = pDis->rcItem;
     bool isPressed = (pDis->itemState & ODS_SELECTED) != 0;
     bool isFocused = (pDis->itemState & ODS_FOCUS) != 0;
+    bool isDisabled = (pDis->itemState & ODS_DISABLED) != 0 || !IsWindowEnabled(pDis->hwndItem);
 
     wchar_t btnText[64] = { 0 };
     GetWindowTextW(pDis->hwndItem, btnText, 64);
@@ -403,16 +407,30 @@ void SettingsWindow::DrawModernButton(LPDRAWITEMSTRUCT pDis, bool isDark) {
     else if (pDis->CtlID == IDC_BTN_PRESET4 && m_selectedPreset == 4) isCurrentPresetActive = true;
 
     if (pDis->CtlID == IDC_BTN_SAVE) {
-        // 主按钮：翡翠绿
-        bgColor = isPressed ? RGB(5, 150, 105) : RGB(16, 185, 129);
-        borderColor = isPressed ? RGB(4, 120, 87) : RGB(16, 185, 129);
-        textColor = RGB(255, 255, 255);
+        if (isDisabled) {
+            // 禁用状态：暗淡沉静底色与低对比边框，传达当前无未保存改动
+            bgColor = isDark ? RGB(35, 39, 48) : RGB(241, 245, 249);
+            borderColor = isDark ? RGB(51, 65, 85) : RGB(226, 232, 240);
+            textColor = isDark ? RGB(100, 116, 139) : RGB(148, 163, 184);
+        } else {
+            // 激活状态：高亮翡翠绿
+            bgColor = isPressed ? RGB(5, 150, 105) : RGB(16, 185, 129);
+            borderColor = isPressed ? RGB(4, 120, 87) : RGB(16, 185, 129);
+            textColor = RGB(255, 255, 255);
+        }
     } else if (pDis->CtlID == IDC_BTN_CANCEL) {
         // 取消按钮
         bgColor = isDark ? (isPressed ? RGB(52, 56, 68) : RGB(38, 42, 52))
                          : (isPressed ? RGB(225, 228, 234) : RGB(240, 242, 246));
         borderColor = isDark ? RGB(70, 78, 92) : RGB(210, 214, 222);
         textColor = isDark ? RGB(220, 224, 232) : RGB(55, 65, 81);
+    } else if (pDis->CtlID == IDC_BTN_CLEAN) {
+        // 清理注册表配置按钮 (轻微危险警示设计)
+        bgColor = isDark ? (isPressed ? RGB(50, 24, 28) : RGB(36, 22, 26))
+                         : (isPressed ? RGB(254, 226, 226) : RGB(255, 241, 242));
+        borderColor = isDark ? (isPressed ? RGB(185, 28, 28) : RGB(127, 29, 29))
+                             : (isPressed ? RGB(239, 68, 68) : RGB(254, 202, 202));
+        textColor = isDark ? RGB(248, 113, 113) : RGB(220, 38, 38);
     } else {
         // 预设卡片按钮 (Preset 1~4)
         if (isCurrentPresetActive) {
@@ -610,9 +628,89 @@ void SettingsWindow::SetupTooltips() {
     AddTip(m_hChkTop, L"让倒计时悬浮窗始终保持在所有窗口最顶层显示，避免被其他软件遮挡");
     AddTip(m_hChkAutoStart, L"电脑开机登录时自动在系统托盘后台静默启动");
     AddTip(m_hChkEdgeDock, L"拖拽浮窗贴近屏幕左右边缘时，自动折叠收起为 32px 灵动小拉手");
+    AddTip(m_hBtnClean, L"彻底清除注册表中的所有配置与开机自启项，恢复全新出厂状态并退出");
+}
+
+ReminderConfig SettingsWindow::GetConfigFromUI() const {
+    ReminderConfig current = ConfigManager::Instance().GetConfig();
+
+    if (m_hModeCombo) {
+        LRESULT modeIdx = SendMessageW(m_hModeCombo, CB_GETCURSEL, 0, 0);
+        if (modeIdx != CB_ERR) current.exerciseMode = static_cast<ExerciseMode>(modeIdx);
+    }
+    if (m_hThemeCombo) {
+        LRESULT themeIdx = SendMessageW(m_hThemeCombo, CB_GETCURSEL, 0, 0);
+        if (themeIdx != CB_ERR) current.themeMode = static_cast<ThemeMode>(themeIdx);
+    }
+    if (m_hMascotCombo) {
+        LRESULT mascotIdx = SendMessageW(m_hMascotCombo, CB_GETCURSEL, 0, 0);
+        if (mascotIdx != CB_ERR) current.mascotTheme = static_cast<MascotTheme>(mascotIdx);
+    }
+    if (m_hTrayCombo) {
+        LRESULT trayIdx = SendMessageW(m_hTrayCombo, CB_GETCURSEL, 0, 0);
+        if (trayIdx != CB_ERR) current.trayDisplayMode = static_cast<TrayDisplayMode>(trayIdx);
+    }
+    if (m_hBorderWidthCombo) {
+        LRESULT borderIdx = SendMessageW(m_hBorderWidthCombo, CB_GETCURSEL, 0, 0);
+        if (borderIdx != CB_ERR) current.borderWidth = static_cast<BorderWidth>(borderIdx);
+    }
+
+    if (m_hWorkMinEdit) {
+        wchar_t buf[32] = { 0 };
+        GetWindowTextW(m_hWorkMinEdit, buf, 32);
+        current.workMinutes = (std::max)(1, _wtoi(buf));
+    }
+    if (m_hStandMinEdit) {
+        wchar_t buf[32] = { 0 };
+        GetWindowTextW(m_hStandMinEdit, buf, 32);
+        current.standMinutes = (std::max)(0, _wtoi(buf));
+    }
+    if (m_hRestSecEdit) {
+        wchar_t buf[32] = { 0 };
+        GetWindowTextW(m_hRestSecEdit, buf, 32);
+        int minRest = ReminderConfig::GetMinRestSecondsForMode(current.exerciseMode);
+        current.restSeconds = (std::max)(minRest, _wtoi(buf));
+    }
+
+    current.enableStand = m_chkStandVal;
+    current.blockInput = m_chkBlockVal;
+    current.strongReminder = m_chkStrongVal;
+    current.alwaysTopMost = m_chkTopVal;
+    current.autoStart = m_chkAutoStartVal;
+    current.enableEdgeDock = m_chkEdgeDockVal;
+
+    return current;
+}
+
+void SettingsWindow::UpdateDirtyState() {
+    if (m_isLoading || !m_hBtnSave) return;
+    ReminderConfig current = GetConfigFromUI();
+    bool isDirty = (current != m_originalConfig);
+    EnableWindow(m_hBtnSave, isDirty ? TRUE : FALSE);
+    InvalidateRect(m_hBtnSave, nullptr, TRUE);
+}
+
+void SettingsWindow::CleanRegistryAndExit() {
+    int choice = MessageBoxW(
+        m_hwnd,
+        L"确定要彻底清除「坐立提醒」在系统注册表中的全部配置吗？\n\n本操作将：\n1. 删除全部自定义时长与视觉配置\n2. 清除开机自动启动项\n3. 退出程序并恢复纯净状态",
+        AppConstants::Identity::DISPLAY_NAME,
+        MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2
+    );
+    if (choice == IDYES) {
+        ConfigManager::Instance().ClearRegistry();
+        MessageBoxW(
+            m_hwnd,
+            L"已成功清除所有配置与自启注册表项，程序将立即退出。",
+            AppConstants::Identity::DISPLAY_NAME,
+            MB_OK | MB_ICONINFORMATION
+        );
+        PostQuitMessage(0);
+    }
 }
 
 void SettingsWindow::LoadConfigToUI() {
+    m_isLoading = true;
     auto& config = ConfigManager::Instance().GetConfig();
 
     wchar_t buf[32];
@@ -652,6 +750,10 @@ void SettingsWindow::LoadConfigToUI() {
     if (m_hBtnPreset2) InvalidateRect(m_hBtnPreset2, nullptr, TRUE);
     if (m_hBtnPreset3) InvalidateRect(m_hBtnPreset3, nullptr, TRUE);
     if (m_hBtnPreset4) InvalidateRect(m_hBtnPreset4, nullptr, TRUE);
+
+    m_originalConfig = config;
+    m_isLoading = false;
+    UpdateDirtyState();
 }
 
 void SettingsWindow::SaveConfigFromUI() {
@@ -695,6 +797,9 @@ void SettingsWindow::SaveConfigFromUI() {
     if (g_pStateMachine) {
         g_pStateMachine->SetConfig(config);
     }
+
+    m_originalConfig = config;
+    UpdateDirtyState();
 
     // 立即刷新主题管理器与全系统 UI 窗口与托盘
     ThemeManager::Instance().Refresh();
@@ -845,12 +950,15 @@ LRESULT CALLBACK SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
             WORD id = LOWORD(wParam);
             WORD code = HIWORD(wParam);
 
-            if (code == CBN_SELCHANGE && reinterpret_cast<HWND>(lParam) == self.m_hModeCombo) {
-                auto newMode = static_cast<ExerciseMode>(SendMessageW(self.m_hModeCombo, CB_GETCURSEL, 0, 0));
-                int recSec = ReminderConfig::GetRecommendedRestSecondsForMode(newMode);
-                wchar_t newBuf[32];
-                swprintf_s(newBuf, L"%d", recSec);
-                SetWindowTextW(self.m_hRestSecEdit, newBuf);
+            if (code == CBN_SELCHANGE) {
+                if (reinterpret_cast<HWND>(lParam) == self.m_hModeCombo) {
+                    auto newMode = static_cast<ExerciseMode>(SendMessageW(self.m_hModeCombo, CB_GETCURSEL, 0, 0));
+                    int recSec = ReminderConfig::GetRecommendedRestSecondsForMode(newMode);
+                    wchar_t newBuf[32];
+                    swprintf_s(newBuf, L"%d", recSec);
+                    SetWindowTextW(self.m_hRestSecEdit, newBuf);
+                }
+                self.UpdateDirtyState();
                 return 0;
             }
 
@@ -873,6 +981,7 @@ LRESULT CALLBACK SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
                     if (self.m_hBtnPreset3) InvalidateRect(self.m_hBtnPreset3, nullptr, TRUE);
                     if (self.m_hBtnPreset4) InvalidateRect(self.m_hBtnPreset4, nullptr, TRUE);
                 }
+                self.UpdateDirtyState();
                 return 0;
             }
 
@@ -898,33 +1007,44 @@ LRESULT CALLBACK SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
                 case IDC_CHK_STAND:
                     self.m_chkStandVal = !self.m_chkStandVal;
                     InvalidateRect(self.m_hChkStand, nullptr, TRUE);
+                    self.UpdateDirtyState();
                     break;
                 case IDC_CHK_BLOCK:
                     self.m_chkBlockVal = !self.m_chkBlockVal;
                     InvalidateRect(self.m_hChkBlock, nullptr, TRUE);
+                    self.UpdateDirtyState();
                     break;
                 case IDC_CHK_STRONG:
                     self.m_chkStrongVal = !self.m_chkStrongVal;
                     InvalidateRect(self.m_hChkStrong, nullptr, TRUE);
+                    self.UpdateDirtyState();
                     break;
                 case IDC_CHK_TOP:
                     self.m_chkTopVal = !self.m_chkTopVal;
                     InvalidateRect(self.m_hChkTop, nullptr, TRUE);
+                    self.UpdateDirtyState();
                     break;
                 case IDC_CHK_AUTOSTART:
                     self.m_chkAutoStartVal = !self.m_chkAutoStartVal;
                     InvalidateRect(self.m_hChkAutoStart, nullptr, TRUE);
+                    self.UpdateDirtyState();
                     break;
                 case IDC_CHK_EDGEDOCK:
                     self.m_chkEdgeDockVal = !self.m_chkEdgeDockVal;
                     InvalidateRect(self.m_hChkEdgeDock, nullptr, TRUE);
+                    self.UpdateDirtyState();
+                    break;
+                case IDC_BTN_CLEAN:
+                    self.CleanRegistryAndExit();
                     break;
                 case IDOK:
                 case IDC_BTN_SAVE:
-                    self.SaveConfigFromUI();
-                    SetWindowTextW(self.m_hBtnSave, L"✓ 已应用");
-                    InvalidateRect(self.m_hBtnSave, nullptr, TRUE);
-                    SetTimer(hwnd, 9991, 1200, nullptr);
+                    if (IsWindowEnabled(self.m_hBtnSave)) {
+                        self.SaveConfigFromUI();
+                        SetWindowTextW(self.m_hBtnSave, L"✓ 已应用");
+                        InvalidateRect(self.m_hBtnSave, nullptr, TRUE);
+                        SetTimer(hwnd, 9991, 1200, nullptr);
+                    }
                     break;
                 case IDC_BTN_CANCEL:
                 case IDCANCEL:

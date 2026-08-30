@@ -103,6 +103,29 @@ struct ReminderConfig {
     int GetRecommendedRestSeconds() const {
         return GetRecommendedRestSecondsForMode(exerciseMode);
     }
+
+    bool operator==(const ReminderConfig& other) const {
+        return workMinutes == other.workMinutes &&
+               restSeconds == other.restSeconds &&
+               standMinutes == other.standMinutes &&
+               enableStand == other.enableStand &&
+               blockInput == other.blockInput &&
+               strongReminder == other.strongReminder &&
+               alwaysTopMost == other.alwaysTopMost &&
+               multiScreen == other.multiScreen &&
+               enableSound == other.enableSound &&
+               autoStart == other.autoStart &&
+               enableEdgeDock == other.enableEdgeDock &&
+               themeMode == other.themeMode &&
+               exerciseMode == other.exerciseMode &&
+               mascotTheme == other.mascotTheme &&
+               trayDisplayMode == other.trayDisplayMode &&
+               borderWidth == other.borderWidth;
+    }
+
+    bool operator!=(const ReminderConfig& other) const {
+        return !(*this == other);
+    }
 };
 
 class ConfigManager {
@@ -114,6 +137,7 @@ public:
 
     void Load();
     void Save();
+    bool ClearRegistry();
 
     const ReminderConfig& GetConfig() const { return m_config; }
     ReminderConfig& GetConfig() { return m_config; }

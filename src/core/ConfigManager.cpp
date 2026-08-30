@@ -145,3 +145,12 @@ void ConfigManager::ApplyPreset(int workMin, int standMin, int restSec) {
     Save();
 }
 
+bool ConfigManager::ClearRegistry() {
+    // 1. 先清除开机自启项
+    SetAutoStartEnabled(false);
+
+    // 2. 递归删除软件在注册表中的全部配置键树
+    LSTATUS status = RegDeleteTreeW(HKEY_CURRENT_USER, m_regKeyPath.c_str());
+    return (status == ERROR_SUCCESS || status == ERROR_FILE_NOT_FOUND);
+}
+

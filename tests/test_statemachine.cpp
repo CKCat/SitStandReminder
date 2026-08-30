@@ -384,6 +384,40 @@ void TestBorderWidthConfig() {
     std::cout << "[PASS] TestBorderWidthConfig" << std::endl;
 }
 
+void TestReminderConfigEquality() {
+    ReminderConfig c1;
+    ReminderConfig c2;
+    assert(c1 == c2);
+    assert(!(c1 != c2));
+
+    // 测试工作时长差异
+    c2.workMinutes = 50;
+    assert(c1 != c2);
+    assert(!(c1 == c2));
+    c2.workMinutes = 45;
+    assert(c1 == c2);
+
+    // 测试布尔开关差异
+    c2.strongReminder = !c1.strongReminder;
+    assert(c1 != c2);
+    c2.strongReminder = c1.strongReminder;
+    assert(c1 == c2);
+
+    // 测试边框线宽差异
+    c2.borderWidth = BorderWidth::ExtraThick;
+    assert(c1 != c2);
+    c2.borderWidth = c1.borderWidth;
+    assert(c1 == c2);
+
+    // 测试托盘风格差异
+    c2.trayDisplayMode = TrayDisplayMode::RunCatCpu;
+    assert(c1 != c2);
+    c2.trayDisplayMode = c1.trayDisplayMode;
+    assert(c1 == c2);
+
+    std::cout << "[PASS] TestReminderConfigEquality" << std::endl;
+}
+
 int main() {
     std::cout << "Running StateMachine & Config Unit Tests..." << std::endl;
     TestInitialState();
@@ -395,11 +429,12 @@ int main() {
     TestPostpone();
     TestTrayDisplayConfig();
     TestBorderWidthConfig();
+    TestReminderConfigEquality();
     TestSystemSuspendAndResume();
     TestWallClockResumeAnchor();
     TestSystemSuspendLockDebounce();
     TestPresetsAndConstants();
     TestSoundConfigAndTransition();
-    std::cout << "All 14 Test Suites PASSED successfully!" << std::endl;
+    std::cout << "All 15 Test Suites PASSED successfully!" << std::endl;
     return 0;
 }

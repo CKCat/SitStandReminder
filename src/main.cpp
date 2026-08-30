@@ -43,7 +43,27 @@ static void EnableEcoQoS() {
     SetProcessInformation(GetCurrentProcess(), ProcessPowerThrottling, &powerThrottling, sizeof(powerThrottling));
 }
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, PWSTR /*pCmdLine*/, int /*nCmdShow*/) {
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE /*hPrevInstance*/, PWSTR pCmdLine, int /*nCmdShow*/) {
+    // 0. 支持绿色卸载与清理注册表命令行参数 (--clean / --uninstall)
+    if (pCmdLine && (wcsstr(pCmdLine, L"--clean") || wcsstr(pCmdLine, L"--uninstall") || wcsstr(pCmdLine, L"/clean") || wcsstr(pCmdLine, L"/uninstall"))) {
+        int choice = MessageBoxW(
+            nullptr,
+            L"是否彻底清除「坐立提醒」在系统注册表中的所有配置与开机自启项？\n\n（清除后程序将恢复出厂状态并退出）",
+            AppConstants::Identity::DISPLAY_NAME,
+            MB_YESNO | MB_ICONQUESTION | MB_TOPMOST
+        );
+        if (choice == IDYES) {
+            ConfigManager::Instance().ClearRegistry();
+            MessageBoxW(
+                nullptr,
+                L"已成功清除所有配置数据与开机自启动项！",
+                AppConstants::Identity::DISPLAY_NAME,
+                MB_OK | MB_ICONINFORMATION | MB_TOPMOST
+            );
+        }
+        return 0;
+    }
+
     // 1. 单实例互斥量保护与智能前置唤醒 (基于单一事实源)
     HANDLE hMutex = CreateMutexW(nullptr, TRUE, AppConstants::Identity::MUTEX_NAME);
     if (!hMutex || GetLastError() == ERROR_ALREADY_EXISTS) {
