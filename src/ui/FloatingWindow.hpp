@@ -44,6 +44,7 @@ public:
     void ClampToWorkArea();
     void OnConfigChanged();
     void OnThemeChanged();
+    void StopAnimation();
 
     HWND GetHwnd() const { return m_hwnd; }
 

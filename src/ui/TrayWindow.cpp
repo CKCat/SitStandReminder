@@ -438,7 +438,8 @@ LRESULT CALLBACK TrayWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM 
             case WM_WTSSESSION_CHANGE: {
                 if (wParam == WTS_SESSION_LOCK) {
                     if (g_pStateMachine) g_pStateMachine->OnSystemSuspendOrLock();
-                    // 锁屏状态下托盘不可见，智能挂起高频 RunCat 动画定时器消除后台空转功耗
+                    // 锁屏状态下智能挂起托盘与悬浮窗动画定时器消除后台空转功耗
+                    FloatingWindow::Instance().StopAnimation();
                     if (TrayWindow::Instance().m_animTimerId) {
                         KillTimer(hwnd, IDT_TRAY_ANIMATION);
                         TrayWindow::Instance().m_animTimerId = 0;
@@ -453,7 +454,8 @@ LRESULT CALLBACK TrayWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM 
             case WM_POWERBROADCAST: {
                 if (wParam == PBT_APMSUSPEND) {
                     if (g_pStateMachine) g_pStateMachine->OnSystemSuspendOrLock();
-                    // 系统休眠期间智能挂起托盘动画定时器
+                    // 系统休眠期间智能挂起托盘与悬浮窗动画定时器
+                    FloatingWindow::Instance().StopAnimation();
                     if (TrayWindow::Instance().m_animTimerId) {
                         KillTimer(hwnd, IDT_TRAY_ANIMATION);
                         TrayWindow::Instance().m_animTimerId = 0;

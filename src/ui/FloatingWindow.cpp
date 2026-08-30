@@ -331,6 +331,24 @@ void FloatingWindow::StartSlideAnimation(int targetPos, bool isHorizontal, DockS
     SetTimer(m_hwnd, IDT_ANIMATION, 16, nullptr); // ~60FPS 动画帧
 }
 
+void FloatingWindow::StopAnimation() {
+    if (m_isAnimating && m_hwnd) {
+        KillTimer(m_hwnd, IDT_ANIMATION);
+        m_isAnimating = false;
+        m_dockState = m_animFinalState;
+        
+        RECT winRc;
+        GetWindowRect(m_hwnd, &winRc);
+        if (m_animIsHorizontal) {
+            SetWindowPos(m_hwnd, nullptr, m_animTargetPos, winRc.top, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+        } else {
+            SetWindowPos(m_hwnd, nullptr, winRc.left, m_animTargetPos, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
+        }
+        UpdateHoverTimerState();
+        Render();
+    }
+}
+
 void FloatingWindow::OnAnimationTick() {
     if (!m_isAnimating || !m_hwnd) return;
 
