@@ -360,6 +360,30 @@ void TestSoundConfigAndTransition() {
     std::cout << "[PASS] TestSoundConfigAndTransition" << std::endl;
 }
 
+void TestBorderWidthConfig() {
+    ReminderConfig config;
+    assert(config.borderWidth == BorderWidth::Medium);
+
+    // 验证悬浮窗线宽映射
+    assert(GetStrokeWidthForBorder(BorderWidth::Thin) == 1.5f);
+    assert(GetStrokeWidthForBorder(BorderWidth::Medium) == 2.5f);
+    assert(GetStrokeWidthForBorder(BorderWidth::Thick) == 3.5f);
+    assert(GetStrokeWidthForBorder(BorderWidth::ExtraThick) == 4.5f);
+    assert(GetStrokeWidthForBorder(static_cast<BorderWidth>(99)) == 2.5f);
+
+    // 验证折叠拉手微型线宽映射
+    assert(GetTabStrokeWidthForBorder(BorderWidth::Thin) == 1.2f);
+    assert(GetTabStrokeWidthForBorder(BorderWidth::Medium) == 2.0f);
+    assert(GetTabStrokeWidthForBorder(BorderWidth::Thick) == 2.8f);
+    assert(GetTabStrokeWidthForBorder(BorderWidth::ExtraThick) == 3.6f);
+    assert(GetTabStrokeWidthForBorder(static_cast<BorderWidth>(99)) == 2.0f);
+
+    config.borderWidth = BorderWidth::ExtraThick;
+    assert(config.borderWidth == BorderWidth::ExtraThick);
+
+    std::cout << "[PASS] TestBorderWidthConfig" << std::endl;
+}
+
 int main() {
     std::cout << "Running StateMachine & Config Unit Tests..." << std::endl;
     TestInitialState();
@@ -370,11 +394,12 @@ int main() {
     TestComprehensiveRestStages();
     TestPostpone();
     TestTrayDisplayConfig();
+    TestBorderWidthConfig();
     TestSystemSuspendAndResume();
     TestWallClockResumeAnchor();
     TestSystemSuspendLockDebounce();
     TestPresetsAndConstants();
     TestSoundConfigAndTransition();
-    std::cout << "All 13 Test Suites PASSED successfully!" << std::endl;
+    std::cout << "All 14 Test Suites PASSED successfully!" << std::endl;
     return 0;
 }

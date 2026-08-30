@@ -6,6 +6,7 @@
 #endif
 #include "MascotRenderer.hpp"
 #include "D2DContext.hpp"
+#include "../core/ConfigManager.hpp"
 #include <algorithm>
 #include <cmath>
 
@@ -607,9 +608,10 @@ void MascotRenderer::DrawMascotDockTab(
     D2D1_ROUNDED_RECT dockPill = D2D1::RoundedRect(tabRect, cornerRadius, cornerRadius);
     pTarget->FillRoundedRectangle(dockPill, pBrush.Get());
 
-    // 外边框微型流光
+    // 外边框微型流光 (支持用户自定义边框粗细)
     float progress = (totalSec > 0) ? std::clamp(static_cast<float>(remainingSec) / static_cast<float>(totalSec), 0.0f, 1.0f) : 1.0f;
-    DrawRoundedRectProgress(pTarget, tabRect, cornerRadius, 1.5f * scale, progress, accentColor);
+    float strokeW = GetTabStrokeWidthForBorder(ConfigManager::Instance().GetConfig().borderWidth) * scale;
+    DrawRoundedRectProgress(pTarget, tabRect, cornerRadius, strokeW, progress, accentColor);
 
     // 拉手中心点
     D2D1_POINT_2F center = D2D1::Point2F(

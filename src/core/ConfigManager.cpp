@@ -30,6 +30,7 @@ void ConfigManager::Load() {
         if (ReadDword(L"ExerciseMode", dwValue) && dwValue <= 3)   m_config.exerciseMode = static_cast<ExerciseMode>(dwValue);
         if (ReadDword(L"MascotTheme", dwValue) && dwValue <= 3)    m_config.mascotTheme = static_cast<MascotTheme>(dwValue);
         if (ReadDword(L"TrayDisplayMode", dwValue) && dwValue <= 3) m_config.trayDisplayMode = static_cast<TrayDisplayMode>(dwValue);
+        if (ReadDword(L"BorderWidth", dwValue) && dwValue <= 3)     m_config.borderWidth = static_cast<BorderWidth>(dwValue);
         if (ReadDword(L"EnableEdgeDock", dwValue)) m_config.enableEdgeDock = (dwValue != 0);
 
         RegCloseKey(hKey);
@@ -80,6 +81,9 @@ void ConfigManager::Save() {
 
         dwVal = static_cast<DWORD>(m_config.trayDisplayMode);
         RegSetValueExW(hKey, L"TrayDisplayMode", 0, REG_DWORD, reinterpret_cast<const BYTE*>(&dwVal), sizeof(DWORD));
+
+        dwVal = static_cast<DWORD>(m_config.borderWidth);
+        RegSetValueExW(hKey, L"BorderWidth", 0, REG_DWORD, reinterpret_cast<const BYTE*>(&dwVal), sizeof(DWORD));
 
         dwVal = m_config.enableEdgeDock ? 1 : 0;
         RegSetValueExW(hKey, L"EnableEdgeDock", 0, REG_DWORD, reinterpret_cast<const BYTE*>(&dwVal), sizeof(DWORD));

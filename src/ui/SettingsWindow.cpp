@@ -27,6 +27,7 @@ extern StateMachine* g_pStateMachine;
 #define IDC_COMBO_THEME   3008
 #define IDC_COMBO_MASCOT  3009
 #define IDC_COMBO_TRAY    3010
+#define IDC_COMBO_BORDER  3017
 
 #define IDC_CHK_STAND       3011
 #define IDC_CHK_BLOCK       3012
@@ -117,6 +118,7 @@ void SettingsWindow::OnThemeChanged() {
     if (m_hThemeCombo) SetWindowTheme(m_hThemeCombo, themeStr, nullptr);
     if (m_hMascotCombo) SetWindowTheme(m_hMascotCombo, themeStr, nullptr);
     if (m_hTrayCombo) SetWindowTheme(m_hTrayCombo, themeStr, nullptr);
+    if (m_hBorderWidthCombo) SetWindowTheme(m_hBorderWidthCombo, themeStr, nullptr);
 
     SetWindowPos(m_hwnd, nullptr, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
     RedrawWindow(m_hwnd, nullptr, nullptr, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN | RDW_FRAME | RDW_UPDATENOW);
@@ -214,6 +216,13 @@ void SettingsWindow::CreateControls(HWND hwnd) {
     SendMessageW(m_hTrayCombo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"灵动小猫 RunCat (状态感应)"));
     SendMessageW(m_hTrayCombo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"动力小猫 RunCat (CPU占用率)"));
 
+    m_hLblBorderWidth = CreateWindowW(L"STATIC", L"浮窗流光边框宽度:", WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hwnd, nullptr, m_hInstance, nullptr);
+    m_hBorderWidthCombo = CreateWindowW(L"COMBOBOX", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_COMBO_BORDER), m_hInstance, nullptr);
+    SendMessageW(m_hBorderWidthCombo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"细线 (1.5px)"));
+    SendMessageW(m_hBorderWidthCombo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"标准 (2.5px)"));
+    SendMessageW(m_hBorderWidthCombo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"加粗 (3.5px)"));
+    SendMessageW(m_hBorderWidthCombo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"醒目极粗 (4.5px)"));
+
     // 设置下拉控件行高 (Selection = 26px, Dropdown List = 24px)
     SendMessageW(m_hModeCombo, CB_SETITEMHEIGHT, static_cast<WPARAM>(-1), 26);
     SendMessageW(m_hModeCombo, CB_SETITEMHEIGHT, 0, 24);
@@ -223,6 +232,8 @@ void SettingsWindow::CreateControls(HWND hwnd) {
     SendMessageW(m_hMascotCombo, CB_SETITEMHEIGHT, 0, 24);
     SendMessageW(m_hTrayCombo, CB_SETITEMHEIGHT, static_cast<WPARAM>(-1), 26);
     SendMessageW(m_hTrayCombo, CB_SETITEMHEIGHT, 0, 24);
+    SendMessageW(m_hBorderWidthCombo, CB_SETITEMHEIGHT, static_cast<WPARAM>(-1), 26);
+    SendMessageW(m_hBorderWidthCombo, CB_SETITEMHEIGHT, 0, 24);
 
     // 4. 高级选项 (双列精简排版，文案清爽易读)
     m_hGroupOptions = CreateWindowW(L"STATIC", L"🛡️ 行为与安全选项", WS_CHILD | WS_VISIBLE | SS_LEFT, 0, 0, 0, 0, hwnd, nullptr, m_hInstance, nullptr);
@@ -247,6 +258,7 @@ void SettingsWindow::CreateControls(HWND hwnd) {
     SetWindowTheme(m_hThemeCombo, themeStr, nullptr);
     SetWindowTheme(m_hMascotCombo, themeStr, nullptr);
     SetWindowTheme(m_hTrayCombo, themeStr, nullptr);
+    SetWindowTheme(m_hBorderWidthCombo, themeStr, nullptr);
 }
 
 void SettingsWindow::UpdateLayout(float dpiScale) {
@@ -268,7 +280,7 @@ void SettingsWindow::UpdateLayout(float dpiScale) {
 
     // 1. 精确计算含标题栏的外框尺寸并绝对居中屏幕可用工作区
     int clientW = S(496);
-    int clientH = S(558);
+    int clientH = S(588);
 
     RECT winRc = { 0, 0, clientW, clientH };
     AdjustWindowRectEx(&winRc, WS_POPUP | WS_CAPTION | WS_SYSMENU, FALSE, WS_EX_DLGMODALFRAME | WS_EX_CONTROLPARENT);
@@ -320,20 +332,23 @@ void SettingsWindow::UpdateLayout(float dpiScale) {
     SetWindowPos(m_hLblTray, nullptr, S(32), S(338), S(130), S(22), SWP_NOZORDER);
     SetWindowPos(m_hTrayCombo, nullptr, S(170), S(334), S(302), S(100), SWP_NOZORDER);
 
+    SetWindowPos(m_hLblBorderWidth, nullptr, S(32), S(368), S(130), S(22), SWP_NOZORDER);
+    SetWindowPos(m_hBorderWidthCombo, nullptr, S(170), S(364), S(302), S(100), SWP_NOZORDER);
+
     // 4. 高级选项区域 (双列 3 行精简舒展排版)
-    SetWindowPos(m_hGroupOptions, nullptr, S(24), S(372), S(448), S(20), SWP_NOZORDER);
-    SetWindowPos(m_hChkStand, nullptr, S(32), S(396), S(216), S(22), SWP_NOZORDER);
-    SetWindowPos(m_hChkBlock, nullptr, S(256), S(396), S(216), S(22), SWP_NOZORDER);
+    SetWindowPos(m_hGroupOptions, nullptr, S(24), S(402), S(448), S(20), SWP_NOZORDER);
+    SetWindowPos(m_hChkStand, nullptr, S(32), S(426), S(216), S(22), SWP_NOZORDER);
+    SetWindowPos(m_hChkBlock, nullptr, S(256), S(426), S(216), S(22), SWP_NOZORDER);
 
-    SetWindowPos(m_hChkStrong, nullptr, S(32), S(424), S(216), S(22), SWP_NOZORDER);
-    SetWindowPos(m_hChkTop, nullptr, S(256), S(424), S(216), S(22), SWP_NOZORDER);
+    SetWindowPos(m_hChkStrong, nullptr, S(32), S(454), S(216), S(22), SWP_NOZORDER);
+    SetWindowPos(m_hChkTop, nullptr, S(256), S(454), S(216), S(22), SWP_NOZORDER);
 
-    SetWindowPos(m_hChkAutoStart, nullptr, S(32), S(452), S(216), S(22), SWP_NOZORDER);
-    SetWindowPos(m_hChkEdgeDock, nullptr, S(256), S(452), S(216), S(22), SWP_NOZORDER);
+    SetWindowPos(m_hChkAutoStart, nullptr, S(32), S(482), S(216), S(22), SWP_NOZORDER);
+    SetWindowPos(m_hChkEdgeDock, nullptr, S(256), S(482), S(216), S(22), SWP_NOZORDER);
 
     // 5. 底部操作按钮 (留足 26px 呼吸底边距)
-    SetWindowPos(m_hBtnSave, nullptr, S(256), S(498), S(130), S(34), SWP_NOZORDER);
-    SetWindowPos(m_hBtnCancel, nullptr, S(394), S(498), S(78), S(34), SWP_NOZORDER);
+    SetWindowPos(m_hBtnSave, nullptr, S(256), S(528), S(130), S(34), SWP_NOZORDER);
+    SetWindowPos(m_hBtnCancel, nullptr, S(394), S(528), S(78), S(34), SWP_NOZORDER);
 
     // 应用字体
     SendMessageW(m_hGroupPreset, WM_SETFONT, reinterpret_cast<WPARAM>(m_hSectionFont), TRUE);
@@ -347,6 +362,7 @@ void SettingsWindow::UpdateLayout(float dpiScale) {
         m_hLblRest, m_hRestSecEdit, m_hLblRestUnit,
         m_hLblMode, m_hModeCombo, m_hLblTheme, m_hThemeCombo,
         m_hLblMascot, m_hMascotCombo, m_hLblTray, m_hTrayCombo,
+        m_hLblBorderWidth, m_hBorderWidthCombo,
         m_hChkStand, m_hChkBlock, m_hChkStrong, m_hChkTop, m_hChkAutoStart, m_hChkEdgeDock
     };
 
@@ -586,6 +602,7 @@ void SettingsWindow::SetupTooltips() {
     AddTip(m_hThemeCombo, L"界面主题：自动跟随 Windows 系统、浅色模式或深色模式");
     AddTip(m_hMascotCombo, L"桌面形象：佛系水豚(头顶橘子)、灵动像素猫(敲键盘)、赛博小助手或工效坐姿");
     AddTip(m_hTrayCombo, L"系统托盘风格：标准应用图标、微缩倒计时进度环、或状态感应/CPU动力的 RunCat 灵动小猫");
+    AddTip(m_hBorderWidthCombo, L"设置悬浮窗及贴边折叠拉手外边框的流光线条宽度（细线/标准/加粗/醒目极粗）");
 
     AddTip(m_hChkStand, L"坐姿工作倒计时结束后，自动切换为站立办公倒计时，促进全身血液循环");
     AddTip(m_hChkBlock, L"全屏休息时安全拦截键盘输入防止误触，按 ESC 键可紧急解锁恢复桌面");
@@ -612,6 +629,7 @@ void SettingsWindow::LoadConfigToUI() {
     SendMessageW(m_hThemeCombo, CB_SETCURSEL, static_cast<WPARAM>(config.themeMode), 0);
     SendMessageW(m_hMascotCombo, CB_SETCURSEL, static_cast<WPARAM>(config.mascotTheme), 0);
     SendMessageW(m_hTrayCombo, CB_SETCURSEL, static_cast<WPARAM>(config.trayDisplayMode), 0);
+    SendMessageW(m_hBorderWidthCombo, CB_SETCURSEL, static_cast<WPARAM>(config.borderWidth), 0);
 
     m_chkStandVal = config.enableStand;
     m_chkBlockVal = config.blockInput;
@@ -650,6 +668,9 @@ void SettingsWindow::SaveConfigFromUI() {
 
     LRESULT trayIdx = SendMessageW(m_hTrayCombo, CB_GETCURSEL, 0, 0);
     if (trayIdx != CB_ERR) config.trayDisplayMode = static_cast<TrayDisplayMode>(trayIdx);
+
+    LRESULT borderIdx = SendMessageW(m_hBorderWidthCombo, CB_GETCURSEL, 0, 0);
+    if (borderIdx != CB_ERR) config.borderWidth = static_cast<BorderWidth>(borderIdx);
 
     wchar_t buf[32];
     GetWindowTextW(m_hWorkMinEdit, buf, 32);

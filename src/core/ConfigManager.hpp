@@ -29,6 +29,33 @@ enum class TrayDisplayMode : int {
     RunCatCpu = 3         // CPU 负载 RunCat (根据系统实时 CPU 占用率变速)
 };
 
+enum class BorderWidth : int {
+    Thin = 0,       // 细线 (1.5px)
+    Medium = 1,     // 标准 (2.5px)
+    Thick = 2,      // 加粗 (3.5px)
+    ExtraThick = 3  // 醒目极粗 (4.5px)
+};
+
+inline float GetStrokeWidthForBorder(BorderWidth bw) {
+    switch (bw) {
+        case BorderWidth::Thin:       return 1.5f;
+        case BorderWidth::Medium:     return 2.5f;
+        case BorderWidth::Thick:      return 3.5f;
+        case BorderWidth::ExtraThick: return 4.5f;
+        default:                      return 2.5f;
+    }
+}
+
+inline float GetTabStrokeWidthForBorder(BorderWidth bw) {
+    switch (bw) {
+        case BorderWidth::Thin:       return 1.2f;
+        case BorderWidth::Medium:     return 2.0f;
+        case BorderWidth::Thick:      return 2.8f;
+        case BorderWidth::ExtraThick: return 3.6f;
+        default:                      return 2.0f;
+    }
+}
+
 struct ReminderConfig {
     int workMinutes = 45;
     int restSeconds = 90;
@@ -45,6 +72,7 @@ struct ReminderConfig {
     ExerciseMode exerciseMode = ExerciseMode::Comprehensive;
     MascotTheme mascotTheme = MascotTheme::Minimalist;
     TrayDisplayMode trayDisplayMode = TrayDisplayMode::DynamicCountdown;
+    BorderWidth borderWidth = BorderWidth::Medium;
 
     // 获取特定模式下的最小安全休息秒数（确保所有动作/法则都能完整做完）
     static int GetMinRestSecondsForMode(ExerciseMode mode) {

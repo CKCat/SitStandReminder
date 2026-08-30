@@ -430,9 +430,10 @@ void FloatingWindow::Render() {
             }
             m_pDCRenderTarget->FillRoundedRectangle(cardRect, pBrush);
 
-            // 外边框周长圆角流光倒计时
+            // 外边框周长圆角流光倒计时 (支持用户自定义边框粗细)
             float progress = (m_totalSeconds > 0) ? std::clamp(static_cast<float>(m_remainingSeconds) / static_cast<float>(m_totalSeconds), 0.0f, 1.0f) : 1.0f;
-            MascotRenderer::Instance().DrawRoundedRectProgress(m_pDCRenderTarget.Get(), cardBounds, cornerRadius, 2.0f * scale, progress, accentColor);
+            float strokeW = GetStrokeWidthForBorder(ConfigManager::Instance().GetConfig().borderWidth) * scale;
+            MascotRenderer::Instance().DrawRoundedRectProgress(m_pDCRenderTarget.Get(), cardBounds, cornerRadius, strokeW, progress, accentColor);
 
             // 左侧释放出大画幅坐姿 / 伴侣空间 (精准适配当前深浅色主题)
             D2D1_POINT_2F ringCenter = D2D1::Point2F(26.0f * scale, scaledH / 2.0f);

@@ -60,6 +60,7 @@ private:
     HWND m_hLblTheme = nullptr;
     HWND m_hLblMascot = nullptr;
     HWND m_hLblTray = nullptr;
+    HWND m_hLblBorderWidth = nullptr;
 
     // 控件句柄
     HWND m_hWorkMinEdit = nullptr;
@@ -69,6 +70,7 @@ private:
     HWND m_hThemeCombo = nullptr;
     HWND m_hMascotCombo = nullptr;
     HWND m_hTrayCombo = nullptr;
+    HWND m_hBorderWidthCombo = nullptr;
     HWND m_hChkStand = nullptr;
     HWND m_hChkBlock = nullptr;
     HWND m_hChkStrong = nullptr;
