@@ -10,6 +10,7 @@ target_include_directories(UnitTests PRIVATE ../src)
 
 target_link_libraries(UnitTests PRIVATE
     shlwapi
+    d2d1
 )
 
 add_test(NAME StateMachineTests COMMAND UnitTests)

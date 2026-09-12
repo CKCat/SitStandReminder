@@ -1,9 +1,12 @@
 #undef NDEBUG
+#include <windows.h>
+#include <d2d1.h>
 #include <cassert>
 #include <iostream>
 #include <string>
 #include "core/StateMachine.hpp"
 #include "core/ConfigManager.hpp"
+#include "graphics/ExerciseLayout.hpp"
 
 void TestInitialState() {
     ReminderConfig config;
@@ -418,6 +421,55 @@ void TestReminderConfigEquality() {
     std::cout << "[PASS] TestReminderConfigEquality" << std::endl;
 }
 
+void TestExerciseLayout() {
+    // 1. Happy Path: 1920x1080 标准 1080P
+    D2D1_RECT_F bounds1080 = D2D1::RectF(0, 0, 1920, 1080);
+    auto layout = ExerciseLayout::Calculate(bounds1080, 1.0f, 480.0f, 280.0f);
+
+    // 基础三段式互斥性
+    assert(layout.headerRect.top >= bounds1080.top);
+    assert(layout.headerRect.bottom < layout.canvasRect.top);
+    assert(layout.canvasRect.bottom < layout.dockRect.top);
+    assert(layout.dockRect.bottom <= bounds1080.bottom);
+
+    // 黄金分割双栏几何断言
+    assert(layout.dockLeftRect.left == layout.dockRect.left);
+    assert(layout.dockLeftRect.top == layout.dockRect.top);
+    assert(layout.dockLeftRect.bottom == layout.dockRect.bottom);
+    assert(layout.dockRightRect.right == layout.dockRect.right);
+    assert(layout.dockRightRect.top == layout.dockRect.top);
+    assert(layout.dockRightRect.bottom == layout.dockRect.bottom);
+
+    // 左右两栏必须有正向间距 (Divider Gap)
+    assert(layout.dockLeftRect.right < layout.dockRightRect.left);
+
+    // 左栏宽度约占 60%~70% 黄金比例
+    float totalDockW = layout.dockRect.right - layout.dockRect.left;
+    float leftW = layout.dockLeftRect.right - layout.dockLeftRect.left;
+    float leftRatio = leftW / totalDockW;
+    assert(leftRatio >= 0.60f && leftRatio <= 0.70f);
+
+    // 右侧仪表盘中心与有效半径
+    assert(layout.dockMeterCenter.x > layout.dockRightRect.left);
+    assert(layout.dockMeterCenter.x < layout.dockRightRect.right);
+    assert(layout.dockMeterRadius >= 20.0f);
+    assert(layout.dockMeterRadius <= (layout.dockRightRect.bottom - layout.dockRightRect.top) * 0.5f);
+
+    // 2. 4K 高分屏 (3840x2160, dpi=2.0)
+    D2D1_RECT_F bounds4K = D2D1::RectF(0, 0, 3840, 2160);
+    auto layout4K = ExerciseLayout::Calculate(bounds4K, 2.0f, 480.0f, 280.0f);
+    assert(layout4K.dockLeftRect.right < layout4K.dockRightRect.left);
+    assert(layout4K.animScale >= 2.0f);
+    assert(layout4K.dockMeterRadius >= 40.0f);
+
+    // 3. 边界退化情况 (小分辨率)
+    D2D1_RECT_F boundsSmall = D2D1::RectF(0, 0, 10, 10);
+    auto layoutSmall = ExerciseLayout::Calculate(boundsSmall, 1.0f);
+    assert(layoutSmall.animScale > 0.0f);
+
+    std::cout << "[PASS] TestExerciseLayout" << std::endl;
+}
+
 int main() {
     std::cout << "Running StateMachine & Config Unit Tests..." << std::endl;
     TestInitialState();
@@ -435,6 +487,8 @@ int main() {
     TestSystemSuspendLockDebounce();
     TestPresetsAndConstants();
     TestSoundConfigAndTransition();
-    std::cout << "All 15 Test Suites PASSED successfully!" << std::endl;
+    TestExerciseLayout();
+    std::cout << "All 16 Test Suites PASSED successfully!" << std::endl;
     return 0;
 }
+

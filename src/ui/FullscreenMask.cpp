@@ -217,10 +217,36 @@ void FullscreenMask::OnPaint(MonitorWindowInfo& info) {
     BeginPaint(info.hwnd, &ps);
 
     info.pRenderTarget->BeginDraw();
-    info.pRenderTarget->Clear(D2D1::ColorF(0.03f, 0.05f, 0.08f, 1.0f));
+    info.pRenderTarget->Clear(D2D1::ColorF(0.015f, 0.025f, 0.04f, 1.0f));
 
     D2D1_SIZE_F size = info.pRenderTarget->GetSize();
     float scale = D2DContext::GetWindowDpiScale(info.hwnd);
+
+    // 全屏中心舞台微光暗角景深 (Center Stage Radial Vignette - 消除纯平死黑，营造深邃护眼聚光场)
+    D2D1_GRADIENT_STOP bgStops[3];
+    bgStops[0].position = 0.0f;
+    bgStops[0].color = D2D1::ColorF(0.06f, 0.12f, 0.18f, 0.85f);
+    bgStops[1].position = 0.55f;
+    bgStops[1].color = D2D1::ColorF(0.03f, 0.06f, 0.10f, 0.45f);
+    bgStops[2].position = 1.0f;
+    bgStops[2].color = D2D1::ColorF(0.015f, 0.025f, 0.04f, 0.0f);
+
+    ComPtr<ID2D1GradientStopCollection> pBgStops;
+    info.pRenderTarget->CreateGradientStopCollection(bgStops, 3, pBgStops.GetAddressOf());
+    if (pBgStops) {
+        ComPtr<ID2D1RadialGradientBrush> pBgBrush;
+        float rx = size.width * 0.65f;
+        float ry = size.height * 0.60f;
+        D2D1_POINT_2F centerPt = D2D1::Point2F(size.width * 0.5f, size.height * 0.45f);
+        info.pRenderTarget->CreateRadialGradientBrush(
+            D2D1::RadialGradientBrushProperties(centerPt, D2D1::Point2F(0, 0), rx, ry),
+            pBgStops.Get(),
+            pBgBrush.GetAddressOf()
+        );
+        if (pBgBrush) {
+            info.pRenderTarget->FillRectangle(D2D1::RectF(0, 0, size.width, size.height), pBgBrush.Get());
+        }
+    }
 
     if (!info.pBrush) {
         info.pRenderTarget->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f), info.pBrush.GetAddressOf());
@@ -231,33 +257,33 @@ void FullscreenMask::OnPaint(MonitorWindowInfo& info) {
 
     if (info.isPrimary) {
         // 主屏幕：顶部状态栏、工间操大视窗、底部快捷退出说明
-        float topBarH = 64.0f * scale;
+        float topBarH = 68.0f * scale;
 
-        // 1. 顶部当前阶段文案
-        auto fmtStage = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 16.0f * scale, DWRITE_FONT_WEIGHT_BOLD);
+        // 1. 顶部当前阶段文案 (升级为大屏 18px 加粗)
+        auto fmtStage = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 18.0f * scale, DWRITE_FONT_WEIGHT_BOLD);
         if (fmtStage && pBrush) {
-            pBrush->SetColor(D2D1::ColorF(0.60f, 0.95f, 0.75f));
-            D2D1_RECT_F stageRect = D2D1::RectF(32.0f * scale, 18.0f * scale, size.width - 240.0f * scale, topBarH);
+            pBrush->SetColor(D2D1::ColorF(0.65f, 0.98f, 0.80f));
+            D2D1_RECT_F stageRect = D2D1::RectF(32.0f * scale, 18.0f * scale, size.width - 260.0f * scale, topBarH);
             info.pRenderTarget->DrawTextW(m_currentStageName.c_str(), static_cast<UINT32>(m_currentStageName.length()), fmtStage.Get(), stageRect, pBrush);
         }
 
-        // 2. 右上角倒计时与退出提示
+        // 2. 右上角倒计时与退出提示 (升级为 18px 加粗)
         int minutes = m_remainingSeconds / 60;
         int seconds = m_remainingSeconds % 60;
         wchar_t timeBuf[32];
         swprintf_s(timeBuf, L"⏱️ 剩余 %02d:%02d", minutes, seconds);
 
-        auto fmtTime = d2d.GetCachedTextFormat(L"Segoe UI", 16.0f * scale, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_TEXT_ALIGNMENT_TRAILING);
+        auto fmtTime = d2d.GetCachedTextFormat(L"Segoe UI", 18.0f * scale, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_TEXT_ALIGNMENT_TRAILING);
         if (fmtTime && pBrush) {
             pBrush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
-            D2D1_RECT_F timeRect = D2D1::RectF(size.width - 240.0f * scale, 18.0f * scale, size.width - 32.0f * scale, topBarH);
+            D2D1_RECT_F timeRect = D2D1::RectF(size.width - 260.0f * scale, 18.0f * scale, size.width - 32.0f * scale, topBarH);
             info.pRenderTarget->DrawTextW(timeBuf, static_cast<UINT32>(wcslen(timeBuf)), fmtTime.Get(), timeRect, pBrush);
         }
 
-        // 3. 核心内容区域
-        float padX = (std::max)(20.0f * scale, size.width * 0.06f);
-        float padY = topBarH + 10.0f * scale;
-        float bottomMargin = 50.0f * scale;
+        // 3. 核心内容区域 (扩大有效画幅占比，减少冗余横向留白)
+        float padX = (std::max)(24.0f * scale, size.width * 0.035f);
+        float padY = topBarH + 6.0f * scale;
+        float bottomMargin = 46.0f * scale;
         D2D1_RECT_F contentBounds = D2D1::RectF(padX, padY, size.width - padX, size.height - bottomMargin);
 
         auto exerciseMode = ConfigManager::Instance().GetConfig().exerciseMode;
@@ -274,7 +300,7 @@ void FullscreenMask::OnPaint(MonitorWindowInfo& info) {
         } else {
             // 极简休息
             if (pBrush) {
-                auto fmtSimple = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 24.0f * scale, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_TEXT_ALIGNMENT_CENTER);
+                auto fmtSimple = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 26.0f * scale, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_TEXT_ALIGNMENT_CENTER);
                 pBrush->SetColor(D2D1::ColorF(0.7f, 0.9f, 0.8f));
                 std::wstring msg = L"🍃 暂别屏幕，极目远眺或闭目深呼吸，让身心重获活力";
                 D2D1_RECT_F centerRect = D2D1::RectF(0, size.height * 0.45f, size.width, size.height * 0.55f);
@@ -282,12 +308,12 @@ void FullscreenMask::OnPaint(MonitorWindowInfo& info) {
             }
         }
 
-        // 4. 底部 ESC 退出提示
-        auto fmtEsc = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 11.0f * scale, DWRITE_FONT_WEIGHT_REGULAR, DWRITE_FONT_STYLE_NORMAL, DWRITE_TEXT_ALIGNMENT_CENTER);
+        // 4. 底部 ESC 退出提示 (升级为大屏舒适字号与清晰柔白)
+        auto fmtEsc = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 13.0f * scale, DWRITE_FONT_WEIGHT_REGULAR, DWRITE_FONT_STYLE_NORMAL, DWRITE_TEXT_ALIGNMENT_CENTER);
         if (fmtEsc && pBrush) {
-            pBrush->SetColor(D2D1::ColorF(0.6f, 0.65f, 0.72f));
+            pBrush->SetColor(D2D1::ColorF(0.72f, 0.78f, 0.85f));
             std::wstring escText = L"如遇紧急事务需处理，可按【ESC 键】立即退出全屏休息";
-            D2D1_RECT_F escRect = D2D1::RectF(0, size.height - 36.0f * scale, size.width, size.height - 8.0f * scale);
+            D2D1_RECT_F escRect = D2D1::RectF(0, size.height - 34.0f * scale, size.width, size.height - 8.0f * scale);
             info.pRenderTarget->DrawTextW(escText.c_str(), static_cast<UINT32>(escText.length()), fmtEsc.Get(), escRect, pBrush);
         }
     } else {
