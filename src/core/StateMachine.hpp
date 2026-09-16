@@ -2,6 +2,7 @@
 
 #include "ConfigManager.hpp"
 #include <chrono>
+#include <cstdint>
 #include <functional>
 #include <string>
 
@@ -50,7 +51,7 @@ public:
     int GetCurrentRestStage() const { return m_currentRestStage; }
     std::wstring GetCurrentRestStageName() const { return m_currentRestStageName; }
     bool IsSuspendedOrLocked() const { return m_isSuspendedOrLocked; }
-    ULONGLONG GetSuspendStartTick() const { return m_suspendStartTick; }
+    uint64_t GetSuspendStartTick() const { return m_suspendStartTick; }
 
     void SetOnStateChanged(StateChangedCallback cb) { m_onStateChanged = std::move(cb); }
     void SetOnTick(TickCallback cb) { m_onTick = std::move(cb); }
@@ -67,6 +68,7 @@ private:
 
     int m_remainingSeconds = 0;
     int m_totalSeconds = 0;
+    int m_postponedSeconds = 0;
     int m_currentRestStage = 0;
     std::wstring m_currentRestStageName = L"";
 
@@ -74,7 +76,7 @@ private:
     bool m_isSuspendedOrLocked = false;
     std::chrono::steady_clock::time_point m_stateStartTime;
     std::chrono::steady_clock::time_point m_pauseStartTime;
-    ULONGLONG m_suspendStartTick = 0;
+    uint64_t m_suspendStartTick = 0;
 
     StateChangedCallback m_onStateChanged;
     TickCallback m_onTick;

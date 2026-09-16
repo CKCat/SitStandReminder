@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -9,12 +10,15 @@
 #include <windows.h>
 #include <dwmapi.h>
 #include <d2d1.h>
-#include <functional>
-#include "../core/ConfigManager.hpp"
-
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
 #define DWMWA_USE_IMMERSIVE_DARK_MODE 20
 #endif
+#else
+#include "../graphics/D2DCompat.hpp"
+#endif
+
+#include <functional>
+#include "../core/ConfigManager.hpp"
 
 struct ThemeColors {
     D2D1_COLOR_F background;
@@ -41,7 +45,9 @@ public:
     bool IsTaskbarDark() const;
     bool IsEffectiveTaskbarDark() const;
 
+#ifdef _WIN32
     void ApplyThemeToWindow(HWND hwnd) const;
+#endif
     const ThemeColors& GetColors() const { return m_colors; }
     
     void Refresh();
@@ -59,4 +65,3 @@ private:
     ThemeColors m_colors;
     ThemeChangedCallback m_onThemeChanged;
 };
-

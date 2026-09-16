@@ -1,3 +1,4 @@
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -116,8 +117,11 @@ void FullscreenMask::CloseAll() {
             pInfo->pBrush.Reset();
             pInfo->pRenderTarget.Reset();
             if (pInfo->hwnd) {
-                DestroyWindow(pInfo->hwnd);
+                HWND hToDestroy = pInfo->hwnd;
                 pInfo->hwnd = nullptr;
+                ShowWindow(hToDestroy, SW_HIDE);
+                SetWindowLongPtrW(hToDestroy, GWLP_USERDATA, 0);
+                DestroyWindow(hToDestroy);
             }
         }
     }
@@ -259,21 +263,21 @@ void FullscreenMask::OnPaint(MonitorWindowInfo& info) {
         // 主屏幕：顶部状态栏、工间操大视窗、底部快捷退出说明
         float topBarH = 68.0f * scale;
 
-        // 1. 顶部当前阶段文案 (升级为大屏 18px 加粗)
-        auto fmtStage = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 18.0f * scale, DWRITE_FONT_WEIGHT_BOLD);
+        // 1. 顶部当前阶段文案 (升级为大屏 20px 加粗)
+        auto fmtStage = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 20.0f * scale, DWRITE_FONT_WEIGHT_BOLD);
         if (fmtStage && pBrush) {
             pBrush->SetColor(D2D1::ColorF(0.65f, 0.98f, 0.80f));
             D2D1_RECT_F stageRect = D2D1::RectF(32.0f * scale, 18.0f * scale, size.width - 260.0f * scale, topBarH);
             info.pRenderTarget->DrawTextW(m_currentStageName.c_str(), static_cast<UINT32>(m_currentStageName.length()), fmtStage.Get(), stageRect, pBrush);
         }
 
-        // 2. 右上角倒计时与退出提示 (升级为 18px 加粗)
+        // 2. 右上角倒计时与退出提示 (升级为 20px 加粗)
         int minutes = m_remainingSeconds / 60;
         int seconds = m_remainingSeconds % 60;
         wchar_t timeBuf[32];
-        swprintf_s(timeBuf, L"⏱️ 剩余 %02d:%02d", minutes, seconds);
+        swprintf_s(timeBuf, L"剩余 %02d:%02d", minutes, seconds);
 
-        auto fmtTime = d2d.GetCachedTextFormat(L"Segoe UI", 18.0f * scale, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_TEXT_ALIGNMENT_TRAILING);
+        auto fmtTime = d2d.GetCachedTextFormat(L"Segoe UI", 20.0f * scale, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_TEXT_ALIGNMENT_TRAILING);
         if (fmtTime && pBrush) {
             pBrush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
             D2D1_RECT_F timeRect = D2D1::RectF(size.width - 260.0f * scale, 18.0f * scale, size.width - 32.0f * scale, topBarH);
@@ -302,7 +306,7 @@ void FullscreenMask::OnPaint(MonitorWindowInfo& info) {
             if (pBrush) {
                 auto fmtSimple = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 26.0f * scale, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_TEXT_ALIGNMENT_CENTER);
                 pBrush->SetColor(D2D1::ColorF(0.7f, 0.9f, 0.8f));
-                std::wstring msg = L"🍃 暂别屏幕，极目远眺或闭目深呼吸，让身心重获活力";
+                std::wstring msg = L"暂别屏幕，极目远眺或闭目深呼吸，让身心重获活力";
                 D2D1_RECT_F centerRect = D2D1::RectF(0, size.height * 0.45f, size.width, size.height * 0.55f);
                 if (fmtSimple) info.pRenderTarget->DrawTextW(msg.c_str(), static_cast<UINT32>(msg.length()), fmtSimple.Get(), centerRect, pBrush);
             }
@@ -324,7 +328,7 @@ void FullscreenMask::OnPaint(MonitorWindowInfo& info) {
 
             auto fmtSub = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 18.0f * scale, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_TEXT_ALIGNMENT_CENTER);
             pBrush->SetColor(D2D1::ColorF(0.5f, 0.8f, 0.7f, 0.8f));
-            std::wstring ambientText = L"🍃 休息工间 · 保持深长平缓呼吸";
+            std::wstring ambientText = L"休息工间 · 保持深长平缓呼吸";
             D2D1_RECT_F subRect = D2D1::RectF(0, size.height * 0.47f, size.width, size.height * 0.53f);
             if (fmtSub) info.pRenderTarget->DrawTextW(ambientText.c_str(), static_cast<UINT32>(ambientText.length()), fmtSub.Get(), subRect, pBrush);
         }
@@ -342,6 +346,9 @@ void FullscreenMask::OnPaint(MonitorWindowInfo& info) {
 LRESULT CALLBACK FullscreenMask::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     try {
         auto* info = reinterpret_cast<MonitorWindowInfo*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+        if (!info) {
+            return DefWindowProcW(hwnd, msg, wParam, lParam);
+        }
 
         switch (msg) {
             case WM_TIMER:
@@ -389,4 +396,6 @@ LRESULT CALLBACK FullscreenMask::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
     }
     return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
+#endif
+
 

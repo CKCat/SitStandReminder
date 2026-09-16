@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AppConstants.hpp"
+#include <iosfwd>
 
 enum class ExerciseMode : int {
     Comprehensive = 0, // 综合工间操（颈椎 + 护眼）
@@ -137,7 +138,8 @@ public:
 
     void Load();
     void Save();
-    bool ClearRegistry();
+    bool ClearConfig();
+    bool ClearRegistry() { return ClearConfig(); }
 
     const ReminderConfig& GetConfig() const { return m_config; }
     ReminderConfig& GetConfig() { return m_config; }
@@ -145,14 +147,18 @@ public:
 
     bool IsAutoStartEnabled() const;
     void SetAutoStartEnabled(bool enable);
+    bool InstallDesktopShortcuts(bool toDesktop = true, bool toMenu = true);
 
     void ApplyPreset(int workMin, int standMin, int restSec);
+    static void ParseIniStream(std::istream& is, ReminderConfig& config);
 
 private:
     ConfigManager();
     ~ConfigManager() = default;
 
     ReminderConfig m_config;
+#ifdef _WIN32
     const std::wstring m_regKeyPath = AppConstants::Identity::REGISTRY_KEY_PATH;
+#endif
 };
 

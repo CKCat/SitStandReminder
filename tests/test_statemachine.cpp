@@ -1,9 +1,12 @@
 #undef NDEBUG
-#include <windows.h>
-#include <d2d1.h>
+#include "graphics/D2DCompat.hpp"
 #include <cassert>
+#include <cstdint>
 #include <iostream>
 #include <string>
+#include <sstream>
+#include <thread>
+#include <chrono>
 #include "core/StateMachine.hpp"
 #include "core/ConfigManager.hpp"
 #include "graphics/ExerciseLayout.hpp"
@@ -218,6 +221,86 @@ void TestPostpone() {
     std::cout << "[PASS] TestPostpone" << std::endl;
 }
 
+void TestPostponeInPausedState() {
+    std::cout << "[RUN] TestPostponeInPausedState..." << std::endl;
+    ReminderConfig config;
+    config.workMinutes = 45;
+    config.standMinutes = 15;
+    config.restSeconds = 60;
+
+    StateMachine sm(config);
+    sm.StartWork();
+    int remBefore = sm.GetRemainingSeconds(); // 45 * 60
+
+    sm.Pause();
+    assert(sm.GetState() == AppState::Paused);
+
+    // 在 Paused 状态下调用 Postpone(5)
+    sm.Postpone(5);
+    // 关键红灯验证：剩余时间必须为 50 * 60，绝不可被忽略！
+    assert(sm.GetRemainingSeconds() == remBefore + 5 * 60);
+
+    sm.Resume();
+    assert(sm.GetState() == AppState::Working);
+    assert(sm.GetRemainingSeconds() == remBefore + 5 * 60);
+    std::cout << "[PASS] TestPostponeInPausedState" << std::endl;
+}
+
+void TestConfigManagerCommentParsing() {
+    std::cout << "[RUN] TestConfigManagerCommentParsing..." << std::endl;
+    std::string iniContent =
+        "# 这是井号注释: WorkMinutes = 99\n"
+        "; 这是分号注释: WorkMinutes = 88\n"
+        "   # 缩进注释: StandMinutes = 77\n"
+        "WorkMinutes = 35\n"
+        "   ; 缩进分号注释: RestSeconds = 999\n"
+        "StandMinutes = 12\n"
+        "RestSeconds = 45\n"
+        "[General]\n"
+        "EnableSound = false\n";
+
+    std::istringstream iss(iniContent);
+    ReminderConfig cfg;
+    ConfigManager::ParseIniStream(iss, cfg);
+
+    assert(cfg.workMinutes == 35);
+    assert(cfg.standMinutes == 12);
+    assert(cfg.restSeconds == 45);
+    assert(cfg.enableSound == false);
+    std::cout << "[PASS] TestConfigManagerCommentParsing" << std::endl;
+}
+
+void TestPostponeWallClock() {
+    ReminderConfig config;
+    config.workMinutes = 45;
+    config.standMinutes = 15;
+    config.restSeconds = 60;
+
+    StateMachine sm(config);
+    sm.SetUseWallClock(true);
+    sm.StartWork();
+    assert(sm.GetRemainingSeconds() == 45 * 60);
+
+    // 延期 5 分钟 (300秒)
+    sm.Postpone(5);
+    assert(sm.GetRemainingSeconds() == 50 * 60);
+    assert(sm.GetTotalSeconds() == 50 * 60);
+
+    // 模拟等待 10ms 并触发 Tick()
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    sm.Tick();
+    // 关键断言: 在物理时间流逝仅数毫秒的情况下，剩余时间应当依然保持为 50*60 (3000s)
+    assert(sm.GetRemainingSeconds() >= 50 * 60 - 1);
+
+    // 再次调用 SetConfig 重新加载配置 (例如设置中心保存配置)
+    sm.SetConfig(config);
+    // 关键断言: 重新 SetConfig 后，推迟后的 50 分钟绝不可被粗暴截断或抹平回 45 分钟！
+    assert(sm.GetRemainingSeconds() == 50 * 60);
+    assert(sm.GetTotalSeconds() == 50 * 60);
+
+    std::cout << "[PASS] TestPostponeWallClock" << std::endl;
+}
+
 void TestTrayDisplayConfig() {
     ReminderConfig config;
     assert(config.trayDisplayMode == TrayDisplayMode::DynamicCountdown);
@@ -296,13 +379,13 @@ void TestSystemSuspendLockDebounce() {
 
     // 模拟先收到锁屏通知
     sm.OnSystemSuspendOrLock();
-    ULONGLONG firstTick = sm.GetSuspendStartTick();
+    uint64_t firstTick = sm.GetSuspendStartTick();
     assert(sm.IsSuspendedOrLocked() == true);
 
     // 模拟短时间后（如休眠前夕）再次收到电源挂起通知
-    Sleep(15);
+    std::this_thread::sleep_for(std::chrono::milliseconds(15));
     sm.OnSystemSuspendOrLock();
-    ULONGLONG secondTick = sm.GetSuspendStartTick();
+    uint64_t secondTick = sm.GetSuspendStartTick();
 
     // 关键断言: 第二次通知不应覆盖第一次锁屏的时间戳
     assert(firstTick == secondTick);
@@ -470,6 +553,118 @@ void TestExerciseLayout() {
     std::cout << "[PASS] TestExerciseLayout" << std::endl;
 }
 
+void TestStateTransitionTriggersOnTickImmediately() {
+    ReminderConfig config;
+    config.workMinutes = 30;
+    config.standMinutes = 10;
+    config.restSeconds = 60;
+    StateMachine sm(config);
+
+    int tickCount = 0;
+    int lastRemain = -1;
+    int lastTotal = -1;
+    sm.SetOnTick([&](int remain, int total) {
+        tickCount++;
+        lastRemain = remain;
+        lastTotal = total;
+    });
+
+    sm.StartWork();
+    assert(tickCount == 1);
+    assert(lastRemain == 30 * 60);
+    assert(lastTotal == 30 * 60);
+
+    sm.StartStand();
+    assert(tickCount == 2);
+    assert(lastRemain == 10 * 60);
+    assert(lastTotal == 10 * 60);
+
+    sm.StartRest();
+    assert(tickCount == 3);
+    assert(lastRemain == 60);
+    assert(lastTotal == 60);
+
+    std::cout << "[PASS] TestStateTransitionTriggersOnTickImmediately" << std::endl;
+}
+
+void TestSetConfigWallClockContinuity() {
+    ReminderConfig config;
+    config.workMinutes = 45; // 2700s
+    config.restSeconds = 60;
+    config.standMinutes = 15;
+    config.enableStand = true;
+
+    StateMachine sm(config);
+    sm.SetUseWallClock(false);
+    sm.StartWork();
+
+    // 模拟工作已经流逝了 15 分钟 (900 秒)，剩余 30 分钟 (1800 秒)
+    for (int i = 0; i < 900; ++i) {
+        sm.Tick();
+    }
+    assert(sm.GetElapsedSeconds() == 900);
+    assert(sm.GetRemainingSeconds() == 1800);
+
+    // 启用 WallClock 并修改配置：用户在设置中心将工作时长改为 50 分钟 (3000 秒)
+    sm.SetUseWallClock(true);
+    ReminderConfig newConfig = config;
+    newConfig.workMinutes = 50;
+    sm.SetConfig(newConfig);
+
+    // 核心断言：总时长增加 300 秒，已流逝时间 900 秒保持不变，剩余时间必须正确增加为 2100 秒 (35分钟)
+    assert(sm.GetTotalSeconds() == 3000);
+    assert(sm.GetRemainingSeconds() == 2100);
+    assert(sm.GetElapsedSeconds() == 900);
+
+    std::cout << "[PASS] TestSetConfigWallClockContinuity" << std::endl;
+}
+
+void TestClearConfigResetsMemory() {
+    auto& cm = ConfigManager::Instance();
+    ReminderConfig customConfig;
+    customConfig.workMinutes = 99;
+    customConfig.standMinutes = 77;
+    customConfig.restSeconds = 250;
+    cm.SetConfig(customConfig);
+    cm.Save();
+
+    assert(cm.GetConfig().workMinutes == 99);
+
+    // 清除配置
+    bool cleared = cm.ClearConfig();
+    assert(cleared);
+
+    // 核心断言：不仅磁盘文件删除，内存单例中必须完全恢复为出厂默认值 (45m, 15m, 90s)
+    assert(cm.GetConfig().workMinutes == 45);
+    assert(cm.GetConfig().standMinutes == 15);
+    assert(cm.GetConfig().restSeconds == 90);
+
+    std::cout << "[PASS] TestClearConfigResetsMemory" << std::endl;
+}
+
+void TestStandingToWorkTransition() {
+    ReminderConfig config;
+    config.workMinutes = 1;
+    config.restSeconds = 60;
+    config.standMinutes = 1;
+    config.enableStand = true;
+
+    StateMachine sm(config);
+    sm.StartStand();
+    assert(sm.GetState() == AppState::Standing);
+
+    // 快进 60 秒站立办公
+    for (int i = 0; i < 60; ++i) {
+        sm.Tick();
+    }
+
+    // 坐站健康循环：站立办公结束后，自动开启坐姿办公，剩余时间重置为 60 秒
+    assert(sm.GetState() == AppState::Working);
+    assert(sm.GetRemainingSeconds() == 60);
+
+    std::cout << "[PASS] TestStandingToWorkTransition" << std::endl;
+}
+
 int main() {
     std::cout << "Running StateMachine & Config Unit Tests..." << std::endl;
     TestInitialState();
@@ -479,6 +674,8 @@ int main() {
     TestPauseResumeAndSkip();
     TestComprehensiveRestStages();
     TestPostpone();
+    TestPostponeInPausedState();
+    TestPostponeWallClock();
     TestTrayDisplayConfig();
     TestBorderWidthConfig();
     TestReminderConfigEquality();
@@ -488,7 +685,12 @@ int main() {
     TestPresetsAndConstants();
     TestSoundConfigAndTransition();
     TestExerciseLayout();
-    std::cout << "All 16 Test Suites PASSED successfully!" << std::endl;
+    TestStateTransitionTriggersOnTickImmediately();
+    TestSetConfigWallClockContinuity();
+    TestClearConfigResetsMemory();
+    TestStandingToWorkTransition();
+    TestConfigManagerCommentParsing();
+    std::cout << "All 22 Test Suites PASSED successfully!" << std::endl;
     return 0;
 }
 

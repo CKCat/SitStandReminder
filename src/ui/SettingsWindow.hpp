@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -8,7 +9,14 @@
 #endif
 #include <windows.h>
 #include <commctrl.h>
+#else
+#include <X11/Xlib.h>
+#include "../graphics/D2DCompat.hpp"
+#include "../graphics/linux/LinuxCanvas.hpp"
+#endif
+
 #include <string>
+#include <memory>
 #include "../core/ConfigManager.hpp"
 
 class SettingsWindow {
@@ -18,20 +26,35 @@ public:
         return instance;
     }
 
+#ifdef _WIN32
     bool Create(HINSTANCE hInstance);
-    void Show(HINSTANCE hInstance);
+    void Show(HINSTANCE hInstance = nullptr);
+    HWND GetHwnd() const { return m_hwnd; }
+    bool IsVisible() const { return m_hwnd != nullptr && IsWindowVisible(m_hwnd); }
+#else
+    bool Create(void* hInstance = nullptr);
+    void Show(void* hInstance = nullptr);
+    Window GetWindow() const { return m_window; }
+    bool IsVisible() const { return m_visible; }
+    void HandleEvent(const XEvent& ev);
+    const ReminderConfig& GetTempConfig() const { return m_tempConfig; }
+    int GetSelectedPreset() const { return m_selectedPreset; }
+    void SimulateClick(int x, int y);
+#endif
+
     void Close();
+    void Destroy();
     void OnThemeChanged();
     void LoadConfigToUI();
 
-    HWND GetHwnd() const { return m_hwnd; }
-
 private:
     SettingsWindow() = default;
-    ~SettingsWindow() { Close(); }
+    ~SettingsWindow() { Destroy(); }
+
+#ifdef _WIN32
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     void CreateControls(HWND hwnd);
-    void UpdateLayout(float dpiScale);
+    void UpdateLayout(float dpiScale, bool recenter = true);
     void SaveConfigFromUI();
     ReminderConfig GetConfigFromUI() const;
     void UpdateDirtyState();
@@ -44,17 +67,16 @@ private:
     HINSTANCE m_hInstance = nullptr;
     HWND m_hwnd = nullptr;
     HWND m_hTooltip = nullptr;
+    float m_dpiScale = 1.0f;
     bool m_isUpdatingTheme = false;
     bool m_isLoading = false;
     ReminderConfig m_originalConfig;
 
-    // 分组标题
     HWND m_hGroupPreset = nullptr;
     HWND m_hGroupCustom = nullptr;
     HWND m_hGroupTheme = nullptr;
     HWND m_hGroupOptions = nullptr;
 
-    // 静态标签
     HWND m_hLblWork = nullptr;
     HWND m_hLblStand = nullptr;
     HWND m_hLblRest = nullptr;
@@ -65,9 +87,8 @@ private:
     HWND m_hLblTheme = nullptr;
     HWND m_hLblMascot = nullptr;
     HWND m_hLblTray = nullptr;
-    HWND m_hLblBorderWidth = nullptr;
+    HWND m_hBorderWidthCombo = nullptr;
 
-    // 控件句柄
     HWND m_hWorkMinEdit = nullptr;
     HWND m_hStandMinEdit = nullptr;
     HWND m_hRestSecEdit = nullptr;
@@ -75,7 +96,6 @@ private:
     HWND m_hThemeCombo = nullptr;
     HWND m_hMascotCombo = nullptr;
     HWND m_hTrayCombo = nullptr;
-    HWND m_hBorderWidthCombo = nullptr;
     HWND m_hChkStand = nullptr;
     HWND m_hChkBlock = nullptr;
     HWND m_hChkStrong = nullptr;
@@ -83,11 +103,10 @@ private:
     HWND m_hChkAutoStart = nullptr;
     HWND m_hChkEdgeDock = nullptr;
 
-    // 预设按钮 (BS_OWNERDRAW)
-    HWND m_hBtnPreset1 = nullptr; // 45m/15m/60s
-    HWND m_hBtnPreset2 = nullptr; // 50m/10m/60s
-    HWND m_hBtnPreset3 = nullptr; // 25m/5m/30s (番茄)
-    HWND m_hBtnPreset4 = nullptr; // 60m/20m/60s
+    HWND m_hBtnPreset1 = nullptr;
+    HWND m_hBtnPreset2 = nullptr;
+    HWND m_hBtnPreset3 = nullptr;
+    HWND m_hBtnPreset4 = nullptr;
     
     HWND m_hBtnSave = nullptr;
     HWND m_hBtnCancel = nullptr;
@@ -110,12 +129,27 @@ private:
 
     int m_selectedPreset = -1;
 
-    // 复选框交互状态
     bool m_chkStandVal = true;
     bool m_chkBlockVal = true;
     bool m_chkStrongVal = true;
     bool m_chkTopVal = false;
     bool m_chkAutoStartVal = false;
     bool m_chkEdgeDockVal = true;
-};
 
+#else
+    // Linux X11 设置中心
+    void Render();
+    void SaveConfigFromUI();
+
+    Window m_window = 0;
+    GC m_gc = nullptr;
+    std::unique_ptr<LinuxRenderTarget> m_pRenderTarget;
+    bool m_visible = false;
+    int m_width = 560;
+    int m_height = 660;
+
+    ReminderConfig m_tempConfig;
+    int m_selectedPreset = -1;
+    bool m_shortcutFeedback = false;
+#endif
+};

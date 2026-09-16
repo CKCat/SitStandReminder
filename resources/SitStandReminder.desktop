@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Version=1.5
+Name=SitStandReminder
+Name[zh_CN]=坐立提醒
+GenericName=Health Reminder
+GenericName[zh_CN]=工位健康坐立与工间操助手
+Comment=Scientific desk exercise and sedentary reminder assistant
+Comment[zh_CN]=科学坐立与颈部视力舒缓工间操健康伴侣
+Exec=SitStandReminder
+Icon=sitstandreminder
+Terminal=false
+Categories=Utility;Health;Clock;
+Keywords=health;stand;sit;stretch;break;exercise;timer;工间操;久坐提醒;视力保护;
+StartupNotify=true
+StartupWMClass=SitStandReminder
+X-GNOME-Autostart-enabled=true

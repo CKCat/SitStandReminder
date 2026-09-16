@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -8,11 +9,18 @@
 #endif
 #include <windows.h>
 #include <shellapi.h>
+#define WM_TRAY_NOTIFY (WM_USER + 101)
+#else
+#include <X11/Xlib.h>
+#include "../graphics/D2DCompat.hpp"
+#include "../graphics/linux/LinuxCanvas.hpp"
+#endif
+
 #include <string>
 #include <functional>
+#include <vector>
+#include <memory>
 #include "../core/StateMachine.hpp"
-
-#define WM_TRAY_NOTIFY (WM_USER + 101)
 
 // 菜单命令 ID
 #define IDM_TRAY_START_WORK      2001
@@ -29,7 +37,7 @@
 #define IDM_TRAY_EXIT            2021
 
 struct TrayMenuItem {
-    UINT id;
+    uint32_t id;
     std::wstring text;
     bool isSeparator;
     bool isChecked;
@@ -42,21 +50,39 @@ public:
         return instance;
     }
 
+#ifdef _WIN32
     bool Create(HINSTANCE hInstance);
-    void Destroy();
-
-    void UpdateTooltip(const std::wstring& text);
-    void ShowBalloon(const std::wstring& title, const std::wstring& msg, DWORD flags = NIIF_INFO);
+    HWND GetHwnd() const { return m_hwnd; }
     void ShowContextMenu(const POINT* pPt = nullptr);
+#else
+    bool Create(void* hInstance = nullptr);
+    Window GetHwnd() const { return m_trayWindow; }
+    void ShowContextMenu(const void* pPt = nullptr);
+#endif
+
+    void Destroy();
+    void UpdateTooltip(const std::wstring& text);
+    void ShowBalloon(const std::wstring& title, const std::wstring& msg, uint32_t flags = 0);
     void UpdateDynamicIcon(AppState state, int remainingSec, int totalSec, const std::wstring& tooltip = L"");
     void RefreshTrayDisplayMode();
-
-    HWND GetHwnd() const { return m_hwnd; }
+    bool IsMenuVisible() const {
+#ifdef _WIN32
+        return false;
+#else
+        return m_menuVisible;
+#endif
+    }
+    void HideMenu();
+    int GetMenuItemAt(int my) const;
+    D2D1_RECT_F GetMenuItemRect(size_t index) const;
+    const std::vector<TrayMenuItem>& GetMenuItems() const { return m_menuItems; }
+    void ExecuteCommand(uint32_t cmdId);
 
 private:
     TrayWindow() = default;
     ~TrayWindow() { Destroy(); }
 
+#ifdef _WIN32
     static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
     void MeasureMenuItem(MEASUREITEMSTRUCT* pMis);
     void DrawMenuItem(DRAWITEMSTRUCT* pDis, bool isDark);
@@ -80,5 +106,32 @@ private:
     float m_lastMenuDpiScale = 0.0f;
     HBRUSH m_hMenuDarkBgBrush = nullptr;
     HBRUSH m_hMenuLightBgBrush = nullptr;
-};
 
+#else
+    // Linux X11 托盘与弹出菜单
+    void HandleTrayEvent(const XEvent& ev);
+    void HandleMenuEvent(const XEvent& ev);
+    void RenderMenu();
+    void RenderTray();
+    void OnAnimationTick();
+
+    Window m_trayWindow = 0;
+    Window m_menuWindow = 0;
+    GC m_trayGC = nullptr;
+    GC m_menuGC = nullptr;
+    std::unique_ptr<LinuxRenderTarget> m_trayRT;
+    std::unique_ptr<LinuxRenderTarget> m_menuRT;
+
+    bool m_menuVisible = false;
+    int m_menuW = 220;
+    int m_menuH = 340;
+    int m_menuHoverIndex = -1;
+
+    AppState m_lastState = AppState::Working;
+    int m_lastRemainingSec = 0;
+    int m_lastTotalSec = 0;
+    int m_animFrame = 0;
+    std::wstring m_tooltip;
+    std::vector<TrayMenuItem> m_menuItems;
+#endif
+};

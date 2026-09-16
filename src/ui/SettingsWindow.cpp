@@ -1,3 +1,4 @@
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -128,6 +129,11 @@ void SettingsWindow::OnThemeChanged() {
 }
 
 void SettingsWindow::Close() {
+    if (m_hwnd) {
+        DestroyWindow(m_hwnd);
+        m_hwnd = nullptr;
+    }
+
     if (m_hFont) { DeleteObject(m_hFont); m_hFont = nullptr; }
     if (m_hBoldFont) { DeleteObject(m_hBoldFont); m_hBoldFont = nullptr; }
     if (m_hSectionFont) { DeleteObject(m_hSectionFont); m_hSectionFont = nullptr; }
@@ -142,11 +148,6 @@ void SettingsWindow::Close() {
     if (m_hAccentThickPen) { DeleteObject(m_hAccentThickPen); m_hAccentThickPen = nullptr; }
     if (m_hWhiteCheckPen) { DeleteObject(m_hWhiteCheckPen); m_hWhiteCheckPen = nullptr; }
 
-    if (m_hwnd) {
-        DestroyWindow(m_hwnd);
-        m_hwnd = nullptr;
-    }
-
     // 防御性清空所有子控件与浮层句柄，避免多轮生命周期中的野句柄引用
     m_hTooltip = nullptr;
     m_hGroupPreset = m_hGroupCustom = m_hGroupTheme = m_hGroupOptions = nullptr;
@@ -160,16 +161,20 @@ void SettingsWindow::Close() {
     m_hBtnSave = m_hBtnCancel = nullptr;
 }
 
+void SettingsWindow::Destroy() {
+    Close();
+}
+
 void SettingsWindow::CreateControls(HWND hwnd) {
     // 1. 预设分组 (基于 AppConstants::PRESETS 单一事实源)
-    m_hGroupPreset = CreateWindowW(L"STATIC", L"⚡ 科学办公周期预设", WS_CHILD | WS_VISIBLE | SS_LEFT, 0, 0, 0, 0, hwnd, nullptr, m_hInstance, nullptr);
+    m_hGroupPreset = CreateWindowW(L"STATIC", L"科学办公周期预设", WS_CHILD | WS_VISIBLE | SS_LEFT, 0, 0, 0, 0, hwnd, nullptr, m_hInstance, nullptr);
     m_hBtnPreset1 = CreateWindowW(L"BUTTON", AppConstants::PRESETS[0].buttonLabel, WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_BTN_PRESET1), m_hInstance, nullptr);
     m_hBtnPreset2 = CreateWindowW(L"BUTTON", AppConstants::PRESETS[1].buttonLabel, WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_BTN_PRESET2), m_hInstance, nullptr);
     m_hBtnPreset3 = CreateWindowW(L"BUTTON", AppConstants::PRESETS[2].buttonLabel, WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_BTN_PRESET3), m_hInstance, nullptr);
     m_hBtnPreset4 = CreateWindowW(L"BUTTON", AppConstants::PRESETS[3].buttonLabel, WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_BTN_PRESET4), m_hInstance, nullptr);
 
     // 2. 自定义时长
-    m_hGroupCustom = CreateWindowW(L"STATIC", L"⏱️ 自定义时长配置", WS_CHILD | WS_VISIBLE | SS_LEFT, 0, 0, 0, 0, hwnd, nullptr, m_hInstance, nullptr);
+    m_hGroupCustom = CreateWindowW(L"STATIC", L"自定义时长配置", WS_CHILD | WS_VISIBLE | SS_LEFT, 0, 0, 0, 0, hwnd, nullptr, m_hInstance, nullptr);
     
     m_hLblWork = CreateWindowW(L"STATIC", L"坐姿工作时长:", WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hwnd, nullptr, m_hInstance, nullptr);
     m_hWorkMinEdit = CreateWindowExW(0, L"EDIT", L"45", WS_CHILD | WS_VISIBLE | WS_TABSTOP | WS_BORDER | ES_NUMBER | ES_AUTOHSCROLL | ES_CENTER, 0, 0, 0, 0, hwnd, nullptr, m_hInstance, nullptr);
@@ -189,7 +194,7 @@ void SettingsWindow::CreateControls(HWND hwnd) {
     SendMessageW(m_hRestSecEdit, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN, MAKELONG(8, 8));
 
     // 3. 模式与外观
-    m_hGroupTheme = CreateWindowW(L"STATIC", L"🧘 提醒模式与伴侣外观", WS_CHILD | WS_VISIBLE | SS_LEFT, 0, 0, 0, 0, hwnd, nullptr, m_hInstance, nullptr);
+    m_hGroupTheme = CreateWindowW(L"STATIC", L"提醒模式与伴侣外观", WS_CHILD | WS_VISIBLE | SS_LEFT, 0, 0, 0, 0, hwnd, nullptr, m_hInstance, nullptr);
     m_hLblMode = CreateWindowW(L"STATIC", L"工间休息操类型:", WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hwnd, nullptr, m_hInstance, nullptr);
     m_hModeCombo = CreateWindowW(L"COMBOBOX", L"", WS_CHILD | WS_VISIBLE | WS_TABSTOP | CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_COMBO_MODE), m_hInstance, nullptr);
     SendMessageW(m_hModeCombo, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(L"综合工间操"));
@@ -237,7 +242,7 @@ void SettingsWindow::CreateControls(HWND hwnd) {
     SendMessageW(m_hBorderWidthCombo, CB_SETITEMHEIGHT, 0, 24);
 
     // 4. 高级选项 (双列精简排版，文案清爽易读)
-    m_hGroupOptions = CreateWindowW(L"STATIC", L"🛡️ 行为与安全选项", WS_CHILD | WS_VISIBLE | SS_LEFT, 0, 0, 0, 0, hwnd, nullptr, m_hInstance, nullptr);
+    m_hGroupOptions = CreateWindowW(L"STATIC", L"行为与安全选项", WS_CHILD | WS_VISIBLE | SS_LEFT, 0, 0, 0, 0, hwnd, nullptr, m_hInstance, nullptr);
     m_hChkStand = CreateWindowW(L"BUTTON", L"启用站立工作循环", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_CHK_STAND), m_hInstance, nullptr);
     m_hChkBlock = CreateWindowW(L"BUTTON", L"休息时拦截键盘输入", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_CHK_BLOCK), m_hInstance, nullptr);
     m_hChkStrong = CreateWindowW(L"BUTTON", L"临界30秒红光强提醒", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_CHK_STRONG), m_hInstance, nullptr);
@@ -246,8 +251,8 @@ void SettingsWindow::CreateControls(HWND hwnd) {
     m_hChkEdgeDock = CreateWindowW(L"BUTTON", L"开启屏幕边缘吸附折叠", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_CHK_EDGEDOCK), m_hInstance, nullptr);
 
     // 5. 底部操作按钮
-    m_hBtnClean = CreateWindowW(L"BUTTON", L"🗑️ 清理配置", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_BTN_CLEAN), m_hInstance, nullptr);
-    m_hBtnSave = CreateWindowW(L"BUTTON", L"✔ 保存并应用", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_BTN_SAVE), m_hInstance, nullptr);
+    m_hBtnClean = CreateWindowW(L"BUTTON", L"清理配置", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_BTN_CLEAN), m_hInstance, nullptr);
+    m_hBtnSave = CreateWindowW(L"BUTTON", L"保存并应用", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_BTN_SAVE), m_hInstance, nullptr);
     m_hBtnCancel = CreateWindowW(L"BUTTON", L"关闭", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW, 0, 0, 0, 0, hwnd, reinterpret_cast<HMENU>(IDC_BTN_CANCEL), m_hInstance, nullptr);
 
     // 6. 安装悬浮气泡提示 (Tooltips)
@@ -263,8 +268,9 @@ void SettingsWindow::CreateControls(HWND hwnd) {
     SetWindowTheme(m_hBorderWidthCombo, themeStr, nullptr);
 }
 
-void SettingsWindow::UpdateLayout(float dpiScale) {
+void SettingsWindow::UpdateLayout(float dpiScale, bool recenter) {
     if (!m_hwnd) return;
+    m_dpiScale = dpiScale;
 
     // Res-1 修复: 先创建新字体，保留旧句柄引用，待 WM_SETFONT 应用后再安全删除
     HFONT hOldFont = m_hFont;
@@ -280,24 +286,38 @@ void SettingsWindow::UpdateLayout(float dpiScale) {
 
     auto S = [dpiScale](int val) { return static_cast<int>(val * dpiScale); };
 
-    // 1. 精确计算含标题栏的外框尺寸并绝对居中屏幕可用工作区
+    // 1. 精确计算含标题栏的外框尺寸 (DEF-02: 采用 AdjustWindowRectExForDpi 适配高分屏)
     int clientW = S(496);
     int clientH = S(588);
 
     RECT winRc = { 0, 0, clientW, clientH };
-    AdjustWindowRectEx(&winRc, WS_POPUP | WS_CAPTION | WS_SYSMENU, FALSE, WS_EX_DLGMODALFRAME | WS_EX_CONTROLPARENT);
+    UINT dpi = static_cast<UINT>(std::round(dpiScale * 96.0f));
+    typedef BOOL (WINAPI *pfnAdjustWindowRectExForDpi)(LPRECT, DWORD, BOOL, DWORD, UINT);
+    static auto pAdjustWindowRectExForDpi = reinterpret_cast<pfnAdjustWindowRectExForDpi>(
+        GetProcAddress(GetModuleHandleW(L"user32.dll"), "AdjustWindowRectExForDpi")
+    );
+    if (pAdjustWindowRectExForDpi) {
+        pAdjustWindowRectExForDpi(&winRc, WS_POPUP | WS_CAPTION | WS_SYSMENU, FALSE, WS_EX_DLGMODALFRAME | WS_EX_CONTROLPARENT, dpi);
+    } else {
+        AdjustWindowRectEx(&winRc, WS_POPUP | WS_CAPTION | WS_SYSMENU, FALSE, WS_EX_DLGMODALFRAME | WS_EX_CONTROLPARENT);
+    }
     int totalW = winRc.right - winRc.left;
     int totalH = winRc.bottom - winRc.top;
 
-    HMONITOR hMon = MonitorFromWindow(m_hwnd, MONITOR_DEFAULTTONEAREST);
-    MONITORINFO mi = { sizeof(MONITORINFO) };
-    GetMonitorInfoW(hMon, &mi);
-    RECT workArea = mi.rcWork;
+    if (recenter) {
+        HMONITOR hMon = MonitorFromWindow(m_hwnd, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO mi = { sizeof(MONITORINFO) };
+        GetMonitorInfoW(hMon, &mi);
+        RECT workArea = mi.rcWork;
 
-    int posX = workArea.left + (workArea.right - workArea.left - totalW) / 2;
-    int posY = workArea.top + (workArea.bottom - workArea.top - totalH) / 2;
+        int posX = workArea.left + (workArea.right - workArea.left - totalW) / 2;
+        int posY = workArea.top + (workArea.bottom - workArea.top - totalH) / 2;
 
-    SetWindowPos(m_hwnd, nullptr, posX, posY, totalW, totalH, SWP_NOZORDER | SWP_NOACTIVATE);
+        SetWindowPos(m_hwnd, nullptr, posX, posY, totalW, totalH, SWP_NOZORDER | SWP_NOACTIVATE);
+    } else {
+        // 跨屏拖拽 DPI 改变时保持当前位置，杜绝瞬移 (DEF-01)
+        SetWindowPos(m_hwnd, nullptr, 0, 0, totalW, totalH, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+    }
 
     // 1. 预设区域
     SetWindowPos(m_hGroupPreset, nullptr, S(24), S(14), S(448), S(20), SWP_NOZORDER);
@@ -371,6 +391,17 @@ void SettingsWindow::UpdateLayout(float dpiScale) {
 
     for (HWND hCtrl : normalControls) {
         SendMessageW(hCtrl, WM_SETFONT, reinterpret_cast<WPARAM>(m_hFont), TRUE);
+    }
+
+    // 重新更新所有下拉框的行高以适配高分屏，防止文字截断 (DEF-04)
+    int comboEditH = S(26);
+    int comboItemH = S(24);
+    HWND combos[] = { m_hModeCombo, m_hThemeCombo, m_hMascotCombo, m_hTrayCombo, m_hBorderWidthCombo };
+    for (HWND hCombo : combos) {
+        if (hCombo) {
+            SendMessageW(hCombo, CB_SETITEMHEIGHT, static_cast<WPARAM>(-1), comboEditH);
+            SendMessageW(hCombo, CB_SETITEMHEIGHT, 0, comboItemH);
+        }
     }
 
     // Res-1 修复: 新字体已完全应用到所有子控件，现在安全销毁旧字体句柄
@@ -528,23 +559,24 @@ void SettingsWindow::DrawModernCheckBox(LPDRAWITEMSTRUCT pDis, bool isDark) {
     // 1. 擦除背景为窗口背景底色
     FillRect(hdc, &rc, isDark ? m_hDarkBgBrush : m_hLightBgBrush);
 
-    // 2. 绘制 16x16 Fluent 圆角方框
-    int boxSize = 16;
+    // 2. 绘制自适应 DPI 缩放的 Fluent 圆角方框 (DEF-03)
+    int boxSize = static_cast<int>(std::round(16.0f * m_dpiScale));
     int boxY = rc.top + (rc.bottom - rc.top - boxSize) / 2;
     RECT boxRc = { rc.left, boxY, rc.left + boxSize, boxY + boxSize };
+    int radius = static_cast<int>(std::round(4.0f * m_dpiScale));
 
     if (isChecked) {
         // 选中态：高雅翡翠绿底 + 纯白对勾 (复用常驻画刷与画笔，零动态分配)
         HGDIOBJ oldBrush = SelectObject(hdc, m_hAccentBrush);
         HGDIOBJ oldPen = SelectObject(hdc, m_hAccentPen);
-        RoundRect(hdc, boxRc.left, boxRc.top, boxRc.right, boxRc.bottom, 4, 4);
+        RoundRect(hdc, boxRc.left, boxRc.top, boxRc.right, boxRc.bottom, radius, radius);
 
-        // 绘制纯白加粗对勾 ✔ (复用常驻对勾笔)
+        // 绘制纯白加粗对勾 ✔ (复用常驻对勾笔，按比例自适应对勾锚点)
         SelectObject(hdc, m_hWhiteCheckPen);
         POINT pts[3] = {
-            { boxRc.left + 3, boxRc.top + 8 },
-            { boxRc.left + 6, boxRc.top + 12 },
-            { boxRc.left + 12, boxRc.top + 4 }
+            { boxRc.left + static_cast<int>(std::round(boxSize * 0.20f)), boxRc.top + static_cast<int>(std::round(boxSize * 0.50f)) },
+            { boxRc.left + static_cast<int>(std::round(boxSize * 0.42f)), boxRc.top + static_cast<int>(std::round(boxSize * 0.75f)) },
+            { boxRc.left + static_cast<int>(std::round(boxSize * 0.78f)), boxRc.top + static_cast<int>(std::round(boxSize * 0.25f)) }
         };
         Polyline(hdc, pts, 3);
         SelectObject(hdc, oldPen);
@@ -554,7 +586,7 @@ void SettingsWindow::DrawModernCheckBox(LPDRAWITEMSTRUCT pDis, bool isDark) {
         HGDIOBJ oldBrush = SelectObject(hdc, isDark ? m_hDarkEditBrush : m_hLightEditBrush);
         HPEN hBorderPen = isDark ? m_hDividerPenDark : m_hDividerPenLight;
         HGDIOBJ oldPen = SelectObject(hdc, hBorderPen);
-        RoundRect(hdc, boxRc.left, boxRc.top, boxRc.right, boxRc.bottom, 4, 4);
+        RoundRect(hdc, boxRc.left, boxRc.top, boxRc.right, boxRc.bottom, radius, radius);
         SelectObject(hdc, oldPen);
         SelectObject(hdc, oldBrush);
     }
@@ -568,7 +600,7 @@ void SettingsWindow::DrawModernCheckBox(LPDRAWITEMSTRUCT pDis, bool isDark) {
     HGDIOBJ oldFont = SelectObject(hdc, m_hFont);
 
     RECT textRc = rc;
-    textRc.left += boxSize + 10;
+    textRc.left += boxSize + static_cast<int>(std::round(10.0f * m_dpiScale));
     DrawTextW(hdc, btnText, -1, &textRc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
     SelectObject(hdc, oldFont);
 }
@@ -941,7 +973,7 @@ LRESULT CALLBACK SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
             float dpiScale = LOWORD(wParam) / 96.0f;
             auto* lprc = reinterpret_cast<RECT*>(lParam);
             SetWindowPos(hwnd, nullptr, lprc->left, lprc->top, lprc->right - lprc->left, lprc->bottom - lprc->top, SWP_NOZORDER | SWP_NOACTIVATE);
-            self.UpdateLayout(dpiScale);
+            self.UpdateLayout(dpiScale, false); // 解决跨屏拖拽瞬移问题 (DEF-01)
             InvalidateRect(hwnd, nullptr, TRUE);
             return 0;
         }
@@ -1041,7 +1073,7 @@ LRESULT CALLBACK SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
                 case IDC_BTN_SAVE:
                     if (IsWindowEnabled(self.m_hBtnSave)) {
                         self.SaveConfigFromUI();
-                        SetWindowTextW(self.m_hBtnSave, L"✓ 已应用");
+                        SetWindowTextW(self.m_hBtnSave, L"已应用");
                         InvalidateRect(self.m_hBtnSave, nullptr, TRUE);
                         SetTimer(hwnd, 9991, 1200, nullptr);
                     }
@@ -1057,7 +1089,7 @@ LRESULT CALLBACK SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
         case WM_TIMER:
             if (wParam == 9991) {
                 KillTimer(hwnd, 9991);
-                SetWindowTextW(self.m_hBtnSave, L"✔ 保存并应用");
+                SetWindowTextW(self.m_hBtnSave, L"保存并应用");
                 InvalidateRect(self.m_hBtnSave, nullptr, TRUE);
                 return 0;
             }
@@ -1079,3 +1111,5 @@ LRESULT CALLBACK SettingsWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
     }
     return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
+#endif
+

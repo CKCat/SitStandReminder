@@ -1,18 +1,7 @@
 #pragma once
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#include <d2d1.h>
-#include <dwrite.h>
-#include <wrl/client.h>
+#include "D2DCompat.hpp"
 #include <string>
-
-using Microsoft::WRL::ComPtr;
 
 class NeckExerciseRenderer {
 public:
@@ -24,6 +13,8 @@ public:
     void Reset();
 
     void Render(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bounds, float dpiScale = 1.0f);
+    void RenderStatic(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bounds, float dpiScale = 1.0f);
+    void RenderDynamic(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bounds, float dpiScale = 1.0f);
 
     int GetCurrentPhase() const { return m_currentPhase; }
     float GetPhaseProgress() const;
@@ -73,5 +64,16 @@ private:
 
     ComPtr<ID2D1PathGeometry> m_baseHeadGeom;
     ComPtr<ID2D1PathGeometry> m_baseTorsoGeom;
+    ComPtr<ID2D1PathGeometry> m_baseLeftClavGeom;
+    ComPtr<ID2D1PathGeometry> m_baseRightClavGeom;
+    ComPtr<ID2D1PathGeometry> m_baseLeftRibGeom;
+    ComPtr<ID2D1PathGeometry> m_baseRightRibGeom;
+    ComPtr<ID2D1PathGeometry> m_baseTrapGeom;
+    int m_lastTrapStretchSide = 0;
+
+    float m_lastAnimScale = 0.0f;
+    float m_lastCanvasBottom = 0.0f;
+    float m_lastCx = 0.0f;
+    float m_lastCy = 0.0f;
 };
 

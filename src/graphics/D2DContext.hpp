@@ -1,20 +1,13 @@
 #pragma once
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#include <d2d1.h>
-#include <d2d1helper.h>
-#include <dwrite.h>
-#include <wrl/client.h>
+#include "D2DCompat.hpp"
 #include <string>
 #include <unordered_map>
 
-using Microsoft::WRL::ComPtr;
+#ifdef _WIN32
+#include <d2d1.h>
+#include <dwrite.h>
+#endif
 
 struct FontKey {
     std::wstring fontFamily;
@@ -56,16 +49,20 @@ public:
     bool Initialize();
     void Uninitialize();
 
-    ID2D1Factory* GetD2DFactory() const { return m_d2dFactory.Get(); }
-    IDWriteFactory* GetDWriteFactory() const { return m_dwriteFactory.Get(); }
+    ID2D1Factory* GetD2DFactory() const;
+    IDWriteFactory* GetDWriteFactory() const;
 
+#ifdef _WIN32
     // 创建针对特定 HWND 的渲染目标
     bool CreateHwndRenderTarget(HWND hwnd, ComPtr<ID2D1HwndRenderTarget>& outTarget, UINT width = 0, UINT height = 0);
 
     // 创建针对内存 DC 的 32-bit Premultiplied Alpha 渲染目标（完美用于 UpdateLayeredWindow）
     bool CreateDCRenderTarget(ComPtr<ID2D1DCRenderTarget>& outTarget);
 
-    // 高性能全局字体格式缓存池（杜绝 60FPS 帧循环中重复分配 COM 实例与临时堆字符串）
+    static float GetWindowDpiScale(HWND hwnd);
+#endif
+
+    // 高性能全局字体格式缓存池
     ComPtr<IDWriteTextFormat> GetCachedTextFormat(
         const std::wstring& fontFamily,
         float fontSize,
@@ -78,18 +75,22 @@ public:
     void ClearFontCache();
 
     // 常驻圆头笔触样式 (Round Cap Stroke Style)
-    ID2D1StrokeStyle* GetRoundStrokeStyle() const { return m_roundStrokeStyle.Get(); }
-
-    static float GetWindowDpiScale(HWND hwnd);
+    ID2D1StrokeStyle* GetRoundStrokeStyle() const;
 
 private:
     D2DContext() = default;
     ~D2DContext() { Uninitialize(); }
 
+#ifdef _WIN32
     ComPtr<ID2D1Factory> m_d2dFactory;
     ComPtr<IDWriteFactory> m_dwriteFactory;
     ComPtr<ID2D1StrokeStyle> m_roundStrokeStyle;
+#else
+    ID2D1Factory* m_pLinuxFactory = nullptr;
+    IDWriteFactory* m_pLinuxWriteFactory = nullptr;
+    ID2D1StrokeStyle* m_pLinuxStrokeStyle = nullptr;
+#endif
+
     std::unordered_map<FontKey, ComPtr<IDWriteTextFormat>, FontKeyHash> m_fontCache;
     bool m_initialized = false;
 };
-

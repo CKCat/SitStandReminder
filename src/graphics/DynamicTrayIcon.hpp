@@ -42,6 +42,7 @@ private:
     void EnsureMemoryDC(int width, int height);
     HICON RenderToHIcon(int size, const std::function<void(ID2D1DCRenderTarget* pRT, float scale, int size)>& drawCallback);
     ID2D1SolidColorBrush* GetSolidBrush(const D2D1_COLOR_F& color);
+    static int GetTaskbarSmallIconSize();
 
     HDC m_memDC = nullptr;
     HBITMAP m_hBitmap = nullptr;

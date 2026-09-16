@@ -1,18 +1,7 @@
 #pragma once
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#include <d2d1.h>
-#include <dwrite.h>
-#include <wrl/client.h>
+#include "D2DCompat.hpp"
 #include <string>
-
-using Microsoft::WRL::ComPtr;
 
 class EyeExerciseRenderer {
 public:
@@ -24,6 +13,8 @@ public:
     void Reset();
 
     void Render(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bounds, float dpiScale = 1.0f);
+    void RenderStatic(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bounds, float dpiScale = 1.0f);
+    void RenderDynamic(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bounds, float dpiScale = 1.0f);
 
     int GetCurrentPhase() const { return m_currentPhase; }
     float GetPhaseProgress() const;
@@ -71,5 +62,12 @@ private:
     );
 
     ComPtr<ID2D1PathGeometry> m_baseRayGeom;
+    ComPtr<ID2D1PathGeometry> m_baseInfinityGeom;
+    ComPtr<ID2D1PathGeometry> m_baseLidGeom;
+
+    float m_lastEyeW = 0.0f;
+    float m_lastEyeScale = 0.0f;
+    float m_lastInfinityWidth = 0.0f;
+    float m_lastInfinityHeight = 0.0f;
 };
 

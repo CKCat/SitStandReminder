@@ -1,5 +1,10 @@
 #include "D2DContext.hpp"
 
+#ifdef _WIN32
+ID2D1Factory* D2DContext::GetD2DFactory() const { return m_d2dFactory.Get(); }
+IDWriteFactory* D2DContext::GetDWriteFactory() const { return m_dwriteFactory.Get(); }
+ID2D1StrokeStyle* D2DContext::GetRoundStrokeStyle() const { return m_roundStrokeStyle.Get(); }
+
 bool D2DContext::Initialize() {
     if (m_initialized) return true;
 
@@ -133,4 +138,5 @@ float D2DContext::GetWindowDpiScale(HWND hwnd) {
     if (dpi == 0) dpi = 96;
     return static_cast<float>(dpi) / 96.0f;
 }
+#endif
 

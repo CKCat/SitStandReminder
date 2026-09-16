@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -7,6 +8,10 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#endif
+
+#include <cstdint>
+#include <cstddef>
 #include <string>
 #include "Version.hpp"
 
@@ -17,6 +22,11 @@ namespace Identity {
     inline constexpr const wchar_t* NAME               = L"SitStandReminder";
     inline constexpr const wchar_t* DISPLAY_NAME       = L"坐立提醒";
     inline constexpr const wchar_t* SLOGAN             = L"科学坐立与工位健康伴侣";
+    inline constexpr const char* APP_ID                = "com.sitstandreminder.app";
+    inline constexpr const char* CONFIG_DIR_NAME       = "SitStandReminder";
+    inline constexpr const char* CONFIG_FILE_NAME      = "config.ini";
+
+#ifdef _WIN32
     inline constexpr const wchar_t* MUTEX_NAME         = L"SitStandReminderSingleInstanceMutex";
     inline constexpr const wchar_t* REGISTRY_KEY_PATH  = L"Software\\SitStandReminder";
     inline constexpr const wchar_t* RUN_AUTORUN_NAME   = L"SitStandReminder";
@@ -34,6 +44,13 @@ namespace Identity {
 
     inline constexpr const wchar_t* CLASS_MASK         = L"SitStandReminderFullscreenClass";
     inline constexpr const wchar_t* TITLE_MASK         = L"SitStandReminderFullscreen";
+#else
+    inline constexpr const char* DESKTOP_ENTRY_NAME    = "SitStandReminder.desktop";
+    inline constexpr const char* LOCK_FILE_NAME        = "SitStandReminder.lock";
+    inline constexpr const char* TITLE_FLOATING        = "SitStandReminderFloating";
+    inline constexpr const char* TITLE_SETTINGS        = "坐立提醒 · 设置中心";
+    inline constexpr const char* TITLE_MASK            = "SitStandReminderFullscreen";
+#endif
 }
 
 // 悬浮窗设计尺寸常量 (96 DPI 逻辑基准)
@@ -51,8 +68,8 @@ namespace Math {
 // 2. 周期预设元数据模型与常量表
 struct PresetInfo {
     int id;                      // 1, 2, 3, 4
-    WORD menuCmdId;              // 托盘菜单命令 ID
-    WORD btnControlId;           // 设置窗口按钮控件 ID
+    uint16_t menuCmdId;          // 托盘菜单命令 ID
+    uint16_t btnControlId;       // 设置窗口按钮控件 ID
     const wchar_t* buttonLabel;  // 按钮标题 (如 "45m 坐 / 15m 站")
     const wchar_t* menuLabel;    // 菜单文本 (如 "预设：45m 坐 / 15m 站")
     int workMinutes;             // 坐姿工作时长 (分)
@@ -89,7 +106,7 @@ inline const PresetInfo* GetPresetById(int id) {
 }
 
 // 根据命令 ID (menuCmdId) 查找预设定义
-inline const PresetInfo* GetPresetByMenuCmd(WORD menuCmdId) {
+inline const PresetInfo* GetPresetByMenuCmd(uint16_t menuCmdId) {
     for (const auto& p : PRESETS) {
         if (p.menuCmdId == menuCmdId) return &p;
     }

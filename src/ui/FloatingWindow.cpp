@@ -1,3 +1,4 @@
+#ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -21,9 +22,11 @@ extern StateMachine* g_pStateMachine;
 #define IDT_HOVER_CHECK     1003
 
 bool FloatingWindow::Create(HINSTANCE hInstance) {
+    m_hInstance = hInstance;
     if (m_hwnd) return true;
 
     WNDCLASSEXW wc = { sizeof(WNDCLASSEXW) };
+    wc.style = CS_DBLCLKS;
     wc.lpfnWndProc = WndProc;
     wc.hInstance = hInstance;
     wc.lpszClassName = AppConstants::Identity::CLASS_FLOATING;
@@ -398,6 +401,7 @@ void FloatingWindow::Render() {
 
     RECT rc = { 0, 0, scaledW, scaledH };
     m_pDCRenderTarget->BindDC(m_memDC, &rc);
+    m_pDCRenderTarget->SetDpi(96.0f, 96.0f);
 
     m_pDCRenderTarget->BeginDraw();
 
@@ -499,10 +503,14 @@ void FloatingWindow::Render() {
             wchar_t timeBuf[16];
             swprintf_s(timeBuf, L"%02d:%02d", minutes, seconds);
 
-            auto fmtTime = d2d.GetCachedTextFormat(L"Segoe UI", 24.0f * scale, DWRITE_FONT_WEIGHT_BOLD);
+            auto fmtTime = d2d.GetCachedTextFormat(
+                L"Segoe UI", 24.0f * scale, DWRITE_FONT_WEIGHT_BOLD,
+                DWRITE_FONT_STYLE_NORMAL, DWRITE_TEXT_ALIGNMENT_LEADING,
+                DWRITE_PARAGRAPH_ALIGNMENT_CENTER
+            );
             if (fmtTime) {
                 pBrush->SetColor(isDark ? D2D1::ColorF(0.96f, 0.98f, 1.0f) : D2D1::ColorF(0.09f, 0.13f, 0.20f));
-                D2D1_RECT_F timeRect = D2D1::RectF(textLeft - 1.0f * scale, 24.0f * scale, textRight, 62.0f * scale);
+                D2D1_RECT_F timeRect = D2D1::RectF(textLeft, 22.0f * scale, textRight, 60.0f * scale);
                 m_pDCRenderTarget->DrawTextW(timeBuf, static_cast<UINT32>(wcslen(timeBuf)), fmtTime.Get(), timeRect, pBrush);
             }
         }
@@ -649,6 +657,11 @@ LRESULT CALLBACK FloatingWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
             break;
         }
 
+        case WM_LBUTTONDBLCLK: {
+            SettingsWindow::Instance().Show(self.m_hInstance);
+            return 0;
+        }
+
         case WM_LBUTTONDOWN: {
             POINT pt;
             GetCursorPos(&pt);
@@ -707,3 +720,5 @@ LRESULT CALLBACK FloatingWindow::WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPA
     }
     return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
+#endif
+

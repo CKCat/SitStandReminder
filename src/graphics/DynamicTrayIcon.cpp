@@ -98,7 +98,9 @@ HICON DynamicTrayIcon::RenderToHIcon(int size, const std::function<void(ID2D1DCR
         return nullptr;
     }
 
-    HBITMAP hMask = CreateBitmap(size, size, 1, 1, nullptr);
+    int maskStride = ((size + 15) / 16) * 2;
+    std::vector<uint8_t> maskBits(maskStride * size, 0);
+    HBITMAP hMask = CreateBitmap(size, size, 1, 1, maskBits.data());
     if (!hMask) return nullptr;
 
     ICONINFO ii = { 0 };
@@ -114,9 +116,31 @@ HICON DynamicTrayIcon::RenderToHIcon(int size, const std::function<void(ID2D1DCR
     return hIcon;
 }
 
+int DynamicTrayIcon::GetTaskbarSmallIconSize() {
+    HWND hTaskbar = FindWindowW(L"Shell_TrayWnd", nullptr);
+    if (hTaskbar) {
+        typedef UINT (WINAPI *pfnGetDpiForWindow)(HWND);
+        static auto pGetDpiForWindow = reinterpret_cast<pfnGetDpiForWindow>(
+            GetProcAddress(GetModuleHandleW(L"user32.dll"), "GetDpiForWindow")
+        );
+        typedef int (WINAPI *pfnGetSystemMetricsForDpi)(int, UINT);
+        static auto pGetSystemMetricsForDpi = reinterpret_cast<pfnGetSystemMetricsForDpi>(
+            GetProcAddress(GetModuleHandleW(L"user32.dll"), "GetSystemMetricsForDpi")
+        );
+        if (pGetDpiForWindow && pGetSystemMetricsForDpi) {
+            UINT dpi = pGetDpiForWindow(hTaskbar);
+            if (dpi > 0) {
+                int s = pGetSystemMetricsForDpi(SM_CXSMICON, dpi);
+                if (s > 0) return s;
+            }
+        }
+    }
+    int s = GetSystemMetrics(SM_CXSMICON);
+    return (s > 0) ? s : 16;
+}
+
 HICON DynamicTrayIcon::CreateCountdownIcon(int remainingSec, int totalSec, AppState state, bool isDark) {
-    int iconSize = GetSystemMetrics(SM_CXSMICON);
-    if (iconSize <= 0) iconSize = 16;
+    int iconSize = GetTaskbarSmallIconSize();
 
     return RenderToHIcon(iconSize, [remainingSec, totalSec, state, isDark](ID2D1DCRenderTarget* pRT, float scale, int size) {
         float cx = size * 0.5f;
@@ -215,8 +239,7 @@ HICON DynamicTrayIcon::CreateCountdownIcon(int remainingSec, int totalSec, AppSt
 }
 
 HICON DynamicTrayIcon::CreateRunCatIcon(int frameIndex, AppState state, bool isDark, float /*cpuUsage*/) {
-    int iconSize = GetSystemMetrics(SM_CXSMICON);
-    if (iconSize <= 0) iconSize = 16;
+    int iconSize = GetTaskbarSmallIconSize();
 
     return RenderToHIcon(iconSize, [frameIndex, state, isDark](ID2D1DCRenderTarget* pRT, float scale, int size) {
         float cx = size * 0.48f;

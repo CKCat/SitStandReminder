@@ -62,7 +62,9 @@ void MascotRenderer::DrawRoundedRectProgress(
 
     float totalLen = L_top1 + L_arcTR + L_right + L_arcBR + L_bottom + L_arcBL + L_left + L_arcTL + L_top2;
     // Bug-5 修复: 添加微小容差防止 9 段浮点累积误差导致末段 remain 计算为负值
-    float targetLen = totalLen * progress + 1e-3f;
+    if (progress <= 0.0005f) return;
+    progress = std::clamp(progress, 0.0f, 1.0f);
+    float targetLen = totalLen * progress;
 
     ComPtr<ID2D1PathGeometry> pathGeom;
     D2DContext::Instance().GetD2DFactory()->CreatePathGeometry(pathGeom.GetAddressOf());
@@ -117,51 +119,69 @@ void MascotRenderer::DrawRoundedRectProgress(
 
                                     // 9. Top Left Line
                                     float remain = targetLen - accumulated;
-                                    float endX = (rect.left + r) + remain;
-                                    sink->AddLine(D2D1::Point2F(endX, rect.top));
+                                    if (remain > 1e-4f) {
+                                        float endX = std::min(cx, (rect.left + r) + remain);
+                                        sink->AddLine(D2D1::Point2F(endX, rect.top));
+                                    }
                                 } else {
                                     float remain = targetLen - accumulated;
-                                    float angle = (remain / L_arcTL) * (AppConstants::Math::PI * 0.5f);
-                                    float arcX = (rect.left + r) - r * cosf(angle);
-                                    float arcY = (rect.top + r) - r * sinf(angle);
-                                    sink->AddArc(D2D1::ArcSegment(D2D1::Point2F(arcX, arcY), D2D1::SizeF(r, r), 0.0f, D2D1_SWEEP_DIRECTION_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
+                                    if (remain > 1e-4f) {
+                                        float angle = std::clamp(remain / L_arcTL, 0.0f, 1.0f) * (AppConstants::Math::PI * 0.5f);
+                                        float arcX = (rect.left + r) - r * cosf(angle);
+                                        float arcY = (rect.top + r) - r * sinf(angle);
+                                        sink->AddArc(D2D1::ArcSegment(D2D1::Point2F(arcX, arcY), D2D1::SizeF(r, r), 0.0f, D2D1_SWEEP_DIRECTION_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
+                                    }
                                 }
                             } else {
                                 float remain = targetLen - accumulated;
-                                sink->AddLine(D2D1::Point2F(rect.left, (rect.bottom - r) - remain));
+                                if (remain > 1e-4f) {
+                                    sink->AddLine(D2D1::Point2F(rect.left, (rect.bottom - r) - remain));
+                                }
                             }
                         } else {
                             float remain = targetLen - accumulated;
-                            float angle = (remain / L_arcBL) * (AppConstants::Math::PI * 0.5f);
-                            float arcX = (rect.left + r) - r * sinf(angle);
-                            float arcY = (rect.bottom - r) + r * cosf(angle);
-                            sink->AddArc(D2D1::ArcSegment(D2D1::Point2F(arcX, arcY), D2D1::SizeF(r, r), 0.0f, D2D1_SWEEP_DIRECTION_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
+                            if (remain > 1e-4f) {
+                                float angle = std::clamp(remain / L_arcBL, 0.0f, 1.0f) * (AppConstants::Math::PI * 0.5f);
+                                float arcX = (rect.left + r) - r * sinf(angle);
+                                float arcY = (rect.bottom - r) + r * cosf(angle);
+                                sink->AddArc(D2D1::ArcSegment(D2D1::Point2F(arcX, arcY), D2D1::SizeF(r, r), 0.0f, D2D1_SWEEP_DIRECTION_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
+                            }
                         }
                     } else {
                         float remain = targetLen - accumulated;
-                        sink->AddLine(D2D1::Point2F((rect.right - r) - remain, rect.bottom));
+                        if (remain > 1e-4f) {
+                            sink->AddLine(D2D1::Point2F((rect.right - r) - remain, rect.bottom));
+                        }
                     }
                 } else {
                     float remain = targetLen - accumulated;
-                    float angle = (remain / L_arcBR) * (AppConstants::Math::PI * 0.5f);
-                    float arcX = (rect.right - r) + r * cosf(angle);
-                    float arcY = (rect.bottom - r) + r * sinf(angle);
-                    sink->AddArc(D2D1::ArcSegment(D2D1::Point2F(arcX, arcY), D2D1::SizeF(r, r), 0.0f, D2D1_SWEEP_DIRECTION_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
+                    if (remain > 1e-4f) {
+                        float angle = std::clamp(remain / L_arcBR, 0.0f, 1.0f) * (AppConstants::Math::PI * 0.5f);
+                        float arcX = (rect.right - r) + r * cosf(angle);
+                        float arcY = (rect.bottom - r) + r * sinf(angle);
+                        sink->AddArc(D2D1::ArcSegment(D2D1::Point2F(arcX, arcY), D2D1::SizeF(r, r), 0.0f, D2D1_SWEEP_DIRECTION_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
+                    }
                 }
             } else {
                 float remain = targetLen - accumulated;
-                sink->AddLine(D2D1::Point2F(rect.right, (rect.top + r) + remain));
+                if (remain > 1e-4f) {
+                    sink->AddLine(D2D1::Point2F(rect.right, (rect.top + r) + remain));
+                }
             }
         } else {
             float remain = targetLen - accumulated;
-            float angle = (remain / L_arcTR) * (AppConstants::Math::PI * 0.5f);
-            float arcX = (rect.right - r) + r * sinf(angle);
-            float arcY = (rect.top + r) - r * cosf(angle);
-            sink->AddArc(D2D1::ArcSegment(D2D1::Point2F(arcX, arcY), D2D1::SizeF(r, r), 0.0f, D2D1_SWEEP_DIRECTION_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
+            if (remain > 1e-4f) {
+                float angle = std::clamp(remain / L_arcTR, 0.0f, 1.0f) * (AppConstants::Math::PI * 0.5f);
+                float arcX = (rect.right - r) + r * sinf(angle);
+                float arcY = (rect.top + r) - r * cosf(angle);
+                sink->AddArc(D2D1::ArcSegment(D2D1::Point2F(arcX, arcY), D2D1::SizeF(r, r), 0.0f, D2D1_SWEEP_DIRECTION_CLOCKWISE, D2D1_ARC_SIZE_SMALL));
+            }
         }
     } else {
         float remain = targetLen;
-        sink->AddLine(D2D1::Point2F(cx + remain, rect.top));
+        if (remain > 1e-4f) {
+            sink->AddLine(D2D1::Point2F(cx + remain, rect.top));
+        }
     }
 
     sink->EndFigure(D2D1_FIGURE_END_OPEN);

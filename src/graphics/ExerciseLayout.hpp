@@ -1,13 +1,6 @@
 #pragma once
 
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#include <d2d1.h>
+#include "D2DCompat.hpp"
 #include <algorithm>
 
 /**
@@ -63,8 +56,8 @@ struct ExerciseLayout {
             bounds.top + padY + headerH
         );
 
-        // 2. Zone B: 底部信息卡片 Guidance Dock (黄金分割双栏架构)
-        float dockH = (std::clamp)(h * 0.22f, 130.0f * layout.dpiScale, 200.0f * layout.dpiScale);
+        // 2. Zone B: 底部信息卡片 Guidance Dock (黄金分割双栏架构，充裕呼吸留白与放大排版)
+        float dockH = (std::clamp)(h * 0.22f, 160.0f * layout.dpiScale, 240.0f * layout.dpiScale);
         float dockBottom = bounds.bottom - padY;
         float dockTop = dockBottom - dockH;
         layout.dockRect = D2D1::RectF(
@@ -119,7 +112,7 @@ struct ExerciseLayout {
         layout.canvasCenterX = layout.canvasRect.left + (layout.canvasRect.right - layout.canvasRect.left) / 2.0f;
         layout.canvasCenterY = layout.canvasRect.top + (layout.canvasRect.bottom - layout.canvasRect.top) / 2.0f;
 
-        // 4. 自适应动画缩放比例计算 (彻底解除 1.35/1.65 钳位，按画布高宽等比自适应扩展)
+        // 4. 自适应动画缩放比例计算 (严格以画布可用净高宽为硬上限，杜绝矮屏穿透)
         float cw = layout.canvasRect.right - layout.canvasRect.left;
         float ch = layout.canvasRect.bottom - layout.canvasRect.top;
         if (cw > 10.0f && ch > 10.0f && baseDesignWidth > 10.0f && baseDesignHeight > 10.0f) {
@@ -127,10 +120,12 @@ struct ExerciseLayout {
             float scaleH = ch / baseDesignHeight;
             float rawScale = (std::min)(scaleW, scaleH);
 
-            // 允许随着 1080P/2K/4K 屏幕按需自然扩展，下限保障不小于 DPI 缩放基准
-            float minScale = 0.85f * layout.dpiScale;
+            // 自适应缩放比例：严格以画布可用净高宽为硬上限 (确保 animScale <= rawScale)，
+            // 杜绝在矮屏或小窗口下因硬编码 minScale 穿透 Header 与 Guidance Dock。
+            // 在高分辨率大屏下允许放大至 4.5x DPI 基准。
             float maxScale = 4.5f * layout.dpiScale;
-            layout.animScale = (std::clamp)(rawScale, minScale, maxScale);
+            float targetScale = (std::min)(rawScale, maxScale);
+            layout.animScale = (std::max)(0.1f, targetScale);
         } else {
             layout.animScale = layout.dpiScale;
         }

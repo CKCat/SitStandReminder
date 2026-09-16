@@ -305,6 +305,8 @@ void NeckExerciseRenderer::DrawAnatomicalTorso(
     if (!pRT || !pBrush) return;
 
     auto& d2d = D2DContext::Instance();
+    auto* pFactory = d2d.GetD2DFactory();
+    if (!pFactory) return;
 
     // 1. 颈窝中心点与双肩峰基准 (拉伸侧肩膀主动下沉固定，深化解剖学真实感)
     float sinkOffset = (stretchSide != 0) ? (ease * 7.0f * animScale) : 0.0f;
@@ -317,48 +319,112 @@ void NeckExerciseRenderer::DrawAnatomicalTorso(
         ? (std::min)(canvasBottom - 8.0f * animScale, cy + 160.0f * animScale)
         : (cy + 138.0f * animScale);
 
-    ComPtr<ID2D1PathGeometry> torsoBaseGeom;
-    d2d.GetD2DFactory()->CreatePathGeometry(torsoBaseGeom.GetAddressOf());
-    if (torsoBaseGeom) {
-        ComPtr<ID2D1GeometrySink> sink;
-        torsoBaseGeom->Open(sink.GetAddressOf());
+    bool layoutChanged = (!m_baseTorsoGeom ||
+                          std::abs(m_lastAnimScale - animScale) > 1e-3f ||
+                          std::abs(m_lastCx - cx) > 1e-3f ||
+                          std::abs(m_lastCy - cy) > 1e-3f ||
+                          std::abs(m_lastCanvasBottom - canvasBottom) > 1e-3f);
+    if (layoutChanged) {
+        m_lastAnimScale = animScale;
+        m_lastCx = cx;
+        m_lastCy = cy;
+        m_lastCanvasBottom = canvasBottom;
 
-        // 始于胸骨柄颈窝
-        sink->BeginFigure(notch, D2D1_FIGURE_BEGIN_FILLED);
+        m_baseTorsoGeom.Reset();
+        m_baseLeftClavGeom.Reset();
+        m_baseRightClavGeom.Reset();
+        m_baseLeftRibGeom.Reset();
+        m_baseRightRibGeom.Reset();
 
-        // 沿左锁骨至左肩峰
-        sink->AddBezier(D2D1::BezierSegment(
-            D2D1::Point2F(cx - 38.0f * animScale, cy + 44.0f * animScale),
-            D2D1::Point2F(cx - 72.0f * animScale, cy + 40.0f * animScale),
-            leftShoulder
-        ));
+        // 1. 重建躯干底座轮廓
+        d2d.GetD2DFactory()->CreatePathGeometry(m_baseTorsoGeom.GetAddressOf());
+        if (m_baseTorsoGeom) {
+            ComPtr<ID2D1GeometrySink> sink;
+            m_baseTorsoGeom->Open(sink.GetAddressOf());
+            sink->BeginFigure(notch, D2D1_FIGURE_BEGIN_FILLED);
+            sink->AddBezier(D2D1::BezierSegment(
+                D2D1::Point2F(cx - 38.0f * animScale, cy + 44.0f * animScale),
+                D2D1::Point2F(cx - 72.0f * animScale, cy + 40.0f * animScale),
+                leftShoulder
+            ));
+            sink->AddBezier(D2D1::BezierSegment(
+                D2D1::Point2F(cx - 102.0f * animScale, cy + 64.0f * animScale),
+                D2D1::Point2F(cx - 88.0f * animScale, cy + 98.0f * animScale),
+                D2D1::Point2F(cx - 72.0f * animScale, torsoBottomY)
+            ));
+            sink->AddLine(D2D1::Point2F(cx + 72.0f * animScale, torsoBottomY));
+            sink->AddBezier(D2D1::BezierSegment(
+                D2D1::Point2F(cx + 88.0f * animScale, cy + 98.0f * animScale),
+                D2D1::Point2F(cx + 102.0f * animScale, cy + 64.0f * animScale),
+                rightShoulder
+            ));
+            sink->AddBezier(D2D1::BezierSegment(
+                D2D1::Point2F(cx + 72.0f * animScale, cy + 40.0f * animScale),
+                D2D1::Point2F(cx + 38.0f * animScale, cy + 44.0f * animScale),
+                notch
+            ));
+            sink->EndFigure(D2D1_FIGURE_END_CLOSED);
+            sink->Close();
+        }
 
-        // 沿左侧三角肌与肋廓流线下滑至底座
-        sink->AddBezier(D2D1::BezierSegment(
-            D2D1::Point2F(cx - 102.0f * animScale, cy + 64.0f * animScale),
-            D2D1::Point2F(cx - 88.0f * animScale, cy + 98.0f * animScale),
-            D2D1::Point2F(cx - 72.0f * animScale, torsoBottomY)
-        ));
+        // 2. 重建锁骨流线
+        d2d.GetD2DFactory()->CreatePathGeometry(m_baseLeftClavGeom.GetAddressOf());
+        if (m_baseLeftClavGeom) {
+            ComPtr<ID2D1GeometrySink> sink;
+            m_baseLeftClavGeom->Open(sink.GetAddressOf());
+            sink->BeginFigure(notch, D2D1_FIGURE_BEGIN_HOLLOW);
+            sink->AddBezier(D2D1::BezierSegment(
+                D2D1::Point2F(cx - 38.0f * animScale, cy + 44.0f * animScale),
+                D2D1::Point2F(cx - 72.0f * animScale, cy + 40.0f * animScale),
+                leftShoulder
+            ));
+            sink->EndFigure(D2D1_FIGURE_END_OPEN);
+            sink->Close();
+        }
 
-        // 底座水平微弧过渡至右侧
-        sink->AddLine(D2D1::Point2F(cx + 72.0f * animScale, torsoBottomY));
+        d2d.GetD2DFactory()->CreatePathGeometry(m_baseRightClavGeom.GetAddressOf());
+        if (m_baseRightClavGeom) {
+            ComPtr<ID2D1GeometrySink> sink;
+            m_baseRightClavGeom->Open(sink.GetAddressOf());
+            sink->BeginFigure(notch, D2D1_FIGURE_BEGIN_HOLLOW);
+            sink->AddBezier(D2D1::BezierSegment(
+                D2D1::Point2F(cx + 38.0f * animScale, cy + 44.0f * animScale),
+                D2D1::Point2F(cx + 72.0f * animScale, cy + 40.0f * animScale),
+                rightShoulder
+            ));
+            sink->EndFigure(D2D1_FIGURE_END_OPEN);
+            sink->Close();
+        }
 
-        // 沿右侧肋廓流线上滑至右肩峰
-        sink->AddBezier(D2D1::BezierSegment(
-            D2D1::Point2F(cx + 88.0f * animScale, cy + 98.0f * animScale),
-            D2D1::Point2F(cx + 102.0f * animScale, cy + 64.0f * animScale),
-            rightShoulder
-        ));
+        // 3. 重建两侧胸肋与三角肌
+        d2d.GetD2DFactory()->CreatePathGeometry(m_baseLeftRibGeom.GetAddressOf());
+        if (m_baseLeftRibGeom) {
+            ComPtr<ID2D1GeometrySink> sink;
+            m_baseLeftRibGeom->Open(sink.GetAddressOf());
+            sink->BeginFigure(leftShoulder, D2D1_FIGURE_BEGIN_HOLLOW);
+            sink->AddBezier(D2D1::BezierSegment(
+                D2D1::Point2F(cx - 102.0f * animScale, cy + 62.0f * animScale),
+                D2D1::Point2F(cx - 92.0f * animScale, cy + 86.0f * animScale),
+                D2D1::Point2F(cx - 78.0f * animScale, cy + 106.0f * animScale)
+            ));
+            sink->EndFigure(D2D1_FIGURE_END_OPEN);
+            sink->Close();
+        }
 
-        // 沿右锁骨回归胸骨柄
-        sink->AddBezier(D2D1::BezierSegment(
-            D2D1::Point2F(cx + 72.0f * animScale, cy + 40.0f * animScale),
-            D2D1::Point2F(cx + 38.0f * animScale, cy + 44.0f * animScale),
-            notch
-        ));
-
-        sink->EndFigure(D2D1_FIGURE_END_CLOSED);
-        sink->Close();
+        d2d.GetD2DFactory()->CreatePathGeometry(m_baseRightRibGeom.GetAddressOf());
+        if (m_baseRightRibGeom) {
+            ComPtr<ID2D1GeometrySink> sink;
+            m_baseRightRibGeom->Open(sink.GetAddressOf());
+            sink->BeginFigure(rightShoulder, D2D1_FIGURE_BEGIN_HOLLOW);
+            sink->AddBezier(D2D1::BezierSegment(
+                D2D1::Point2F(cx + 102.0f * animScale, cy + 62.0f * animScale),
+                D2D1::Point2F(cx + 92.0f * animScale, cy + 86.0f * animScale),
+                D2D1::Point2F(cx + 78.0f * animScale, cy + 106.0f * animScale)
+            ));
+            sink->EndFigure(D2D1_FIGURE_END_OPEN);
+            sink->Close();
+        }
+    }
 
         // 自上而下柔和半透明微光渐变 (冷海蓝微光向底座自然渐隐至透明)
         D2D1_GRADIENT_STOP baseStops[3];
@@ -378,34 +444,38 @@ void NeckExerciseRenderer::DrawAnatomicalTorso(
                 pBaseStops.Get(),
                 pBaseBrush.GetAddressOf()
             );
-            if (pBaseBrush) {
-                pRT->FillGeometry(torsoBaseGeom.Get(), pBaseBrush.Get());
+            if (pBaseBrush && m_baseTorsoGeom) {
+                pRT->FillGeometry(m_baseTorsoGeom.Get(), pBaseBrush.Get());
             }
         }
-    }
 
     // 3. 斜方肌热力张力渐变肌筋膜带 (在拉伸侧呈现自然的肌束受力走向)
     if (ease > 0.08f && stretchSide != 0) {
         float shoulderX = (stretchSide == 1) ? rightShoulder.x : leftShoulder.x;
         float shoulderY = (stretchSide == 1) ? rightShoulder.y : leftShoulder.y;
+        D2D1_POINT_2F neckOrigin = D2D1::Point2F(cx + stretchSide * 6.0f * animScale, cy + 8.0f * animScale);
 
-        ComPtr<ID2D1PathGeometry> trapGeom;
-        d2d.GetD2DFactory()->CreatePathGeometry(trapGeom.GetAddressOf());
-        if (trapGeom) {
-            ComPtr<ID2D1GeometrySink> sink;
-            trapGeom->Open(sink.GetAddressOf());
-            D2D1_POINT_2F neckOrigin = D2D1::Point2F(cx + stretchSide * 6.0f * animScale, cy + 8.0f * animScale);
-            sink->BeginFigure(neckOrigin, D2D1_FIGURE_BEGIN_FILLED);
-            sink->AddBezier(D2D1::BezierSegment(
-                D2D1::Point2F(cx + stretchSide * 45.0f * animScale, cy + 18.0f * animScale),
-                D2D1::Point2F(cx + stretchSide * 78.0f * animScale, cy + 26.0f * animScale),
-                D2D1::Point2F(shoulderX, shoulderY)
-            ));
-            sink->AddLine(D2D1::Point2F(cx + stretchSide * 28.0f * animScale, cy + 42.0f * animScale));
-            sink->AddLine(neckOrigin);
-            sink->EndFigure(D2D1_FIGURE_END_CLOSED);
-            sink->Close();
+        if (!m_baseTrapGeom || m_lastTrapStretchSide != stretchSide || layoutChanged) {
+            m_lastTrapStretchSide = stretchSide;
+            m_baseTrapGeom.Reset();
+            d2d.GetD2DFactory()->CreatePathGeometry(m_baseTrapGeom.GetAddressOf());
+            if (m_baseTrapGeom) {
+                ComPtr<ID2D1GeometrySink> sink;
+                m_baseTrapGeom->Open(sink.GetAddressOf());
+                sink->BeginFigure(neckOrigin, D2D1_FIGURE_BEGIN_FILLED);
+                sink->AddBezier(D2D1::BezierSegment(
+                    D2D1::Point2F(cx + stretchSide * 45.0f * animScale, cy + 18.0f * animScale),
+                    D2D1::Point2F(cx + stretchSide * 78.0f * animScale, cy + 26.0f * animScale),
+                    D2D1::Point2F(shoulderX, shoulderY)
+                ));
+                sink->AddLine(D2D1::Point2F(cx + stretchSide * 28.0f * animScale, cy + 42.0f * animScale));
+                sink->AddLine(neckOrigin);
+                sink->EndFigure(D2D1_FIGURE_END_CLOSED);
+                sink->Close();
+            }
+        }
 
+        if (m_baseTrapGeom) {
             // 线性渐变热力笔刷 (浅青蓝 -> 温暖琥珀橙红)
             D2D1_GRADIENT_STOP stops[3];
             stops[0].position = 0.0f;
@@ -425,46 +495,22 @@ void NeckExerciseRenderer::DrawAnatomicalTorso(
                     pGradBrush.GetAddressOf()
                 );
                 if (pGradBrush) {
-                    pRT->FillGeometry(trapGeom.Get(), pGradBrush.Get());
+                    pRT->FillGeometry(m_baseTrapGeom.Get(), pGradBrush.Get());
                 }
             }
 
             pBrush->SetColor(D2D1::ColorF(1.0f, 0.85f, 0.40f, 0.60f * ease));
-            pRT->DrawGeometry(trapGeom.Get(), pBrush, 1.5f * animScale);
+            pRT->DrawGeometry(m_baseTrapGeom.Get(), pBrush, 1.5f * animScale);
         }
     }
 
-    // 4. 锁骨 (Clavicle) 流线贝塞尔轮廓
+    // 4. 锁骨 (Clavicle) 流线贝塞尔轮廓 (直接绘制缓存几何体)
     pBrush->SetColor(D2D1::ColorF(0.72f, 0.86f, 0.96f, 0.95f));
-    ComPtr<ID2D1PathGeometry> leftClavGeom;
-    d2d.GetD2DFactory()->CreatePathGeometry(leftClavGeom.GetAddressOf());
-    if (leftClavGeom) {
-        ComPtr<ID2D1GeometrySink> sink;
-        leftClavGeom->Open(sink.GetAddressOf());
-        sink->BeginFigure(notch, D2D1_FIGURE_BEGIN_HOLLOW);
-        sink->AddBezier(D2D1::BezierSegment(
-            D2D1::Point2F(cx - 38.0f * animScale, cy + 44.0f * animScale),
-            D2D1::Point2F(cx - 72.0f * animScale, cy + 40.0f * animScale),
-            leftShoulder
-        ));
-        sink->EndFigure(D2D1_FIGURE_END_OPEN);
-        sink->Close();
-        pRT->DrawGeometry(leftClavGeom.Get(), pBrush, 4.0f * animScale);
+    if (m_baseLeftClavGeom) {
+        pRT->DrawGeometry(m_baseLeftClavGeom.Get(), pBrush, 4.0f * animScale);
     }
-    ComPtr<ID2D1PathGeometry> rightClavGeom;
-    d2d.GetD2DFactory()->CreatePathGeometry(rightClavGeom.GetAddressOf());
-    if (rightClavGeom) {
-        ComPtr<ID2D1GeometrySink> sink;
-        rightClavGeom->Open(sink.GetAddressOf());
-        sink->BeginFigure(notch, D2D1_FIGURE_BEGIN_HOLLOW);
-        sink->AddBezier(D2D1::BezierSegment(
-            D2D1::Point2F(cx + 38.0f * animScale, cy + 44.0f * animScale),
-            D2D1::Point2F(cx + 72.0f * animScale, cy + 40.0f * animScale),
-            rightShoulder
-        ));
-        sink->EndFigure(D2D1_FIGURE_END_OPEN);
-        sink->Close();
-        pRT->DrawGeometry(rightClavGeom.Get(), pBrush, 4.0f * animScale);
+    if (m_baseRightClavGeom) {
+        pRT->DrawGeometry(m_baseRightClavGeom.Get(), pBrush, 4.0f * animScale);
     }
 
     // 5. 胸骨柄中心微标 (Manubrium) 与胸骨纵线
@@ -475,37 +521,13 @@ void NeckExerciseRenderer::DrawAnatomicalTorso(
     pRT->DrawLine(notch, D2D1::Point2F(cx, cy + 96.0f * animScale), pBrush, 1.8f * animScale);
     pRT->FillEllipse(D2D1::Ellipse(D2D1::Point2F(cx, cy + 96.0f * animScale), 3.0f * animScale, 3.0f * animScale), pBrush);
 
-    // 6. 三角肌与胸肋两侧流线轮廓
+    // 6. 三角肌与胸肋两侧流线轮廓 (直接绘制缓存几何体)
     pBrush->SetColor(D2D1::ColorF(0.55f, 0.72f, 0.88f, 0.75f));
-    ComPtr<ID2D1PathGeometry> leftTorso;
-    d2d.GetD2DFactory()->CreatePathGeometry(leftTorso.GetAddressOf());
-    if (leftTorso) {
-        ComPtr<ID2D1GeometrySink> sink;
-        leftTorso->Open(sink.GetAddressOf());
-        sink->BeginFigure(leftShoulder, D2D1_FIGURE_BEGIN_HOLLOW);
-        sink->AddBezier(D2D1::BezierSegment(
-            D2D1::Point2F(cx - 102.0f * animScale, cy + 62.0f * animScale),
-            D2D1::Point2F(cx - 92.0f * animScale, cy + 86.0f * animScale),
-            D2D1::Point2F(cx - 78.0f * animScale, cy + 106.0f * animScale)
-        ));
-        sink->EndFigure(D2D1_FIGURE_END_OPEN);
-        sink->Close();
-        pRT->DrawGeometry(leftTorso.Get(), pBrush, 3.5f * animScale);
+    if (m_baseLeftRibGeom) {
+        pRT->DrawGeometry(m_baseLeftRibGeom.Get(), pBrush, 3.5f * animScale);
     }
-    ComPtr<ID2D1PathGeometry> rightTorso;
-    d2d.GetD2DFactory()->CreatePathGeometry(rightTorso.GetAddressOf());
-    if (rightTorso) {
-        ComPtr<ID2D1GeometrySink> sink;
-        rightTorso->Open(sink.GetAddressOf());
-        sink->BeginFigure(rightShoulder, D2D1_FIGURE_BEGIN_HOLLOW);
-        sink->AddBezier(D2D1::BezierSegment(
-            D2D1::Point2F(cx + 102.0f * animScale, cy + 62.0f * animScale),
-            D2D1::Point2F(cx + 92.0f * animScale, cy + 86.0f * animScale),
-            D2D1::Point2F(cx + 78.0f * animScale, cy + 106.0f * animScale)
-        ));
-        sink->EndFigure(D2D1_FIGURE_END_OPEN);
-        sink->Close();
-        pRT->DrawGeometry(rightTorso.Get(), pBrush, 3.5f * animScale);
+    if (m_baseRightRibGeom) {
+        pRT->DrawGeometry(m_baseRightRibGeom.Get(), pBrush, 3.5f * animScale);
     }
 }
 
@@ -551,42 +573,37 @@ void NeckExerciseRenderer::DrawCircularPacer(
     // 3. 动态进度扫掠弧线与头部巡航发光珠
     float sweepFraction = std::clamp(tNorm, 0.0f, 1.0f);
     if (sweepFraction > 0.005f) {
-        ComPtr<ID2D1PathGeometry> arcGeom;
-        d2d.GetD2DFactory()->CreatePathGeometry(arcGeom.GetAddressOf());
-        if (arcGeom) {
-            ComPtr<ID2D1GeometrySink> sink;
-            arcGeom->Open(sink.GetAddressOf());
+        const int arcSegments = static_cast<int>(sweepFraction * 72.0f) + 1;
+        D2D1_COLOR_F sweepColor;
+        if (segment == 0) sweepColor = D2D1::ColorF(0.20f, 0.85f, 1.0f, 0.95f);
+        else if (segment == 1) sweepColor = D2D1::ColorF(1.0f, 0.85f, 0.35f, 1.0f);
+        else sweepColor = D2D1::ColorF(0.35f, 1.0f, 0.70f, 0.95f);
 
-            const int arcSegments = static_cast<int>(sweepFraction * 72.0f) + 1;
-            D2D1_POINT_2F headPt = center;
-            for (int i = 0; i <= arcSegments; ++i) {
-                float frac = (static_cast<float>(i) / arcSegments) * sweepFraction;
-                float angle = -AppConstants::Math::PI * 0.5f + frac * AppConstants::Math::PI * 2.0f;
-                D2D1_POINT_2F pt = D2D1::Point2F(
-                    center.x + trackRadius * std::cos(angle),
-                    center.y + trackRadius * std::sin(angle)
-                );
-                if (i == 0) sink->BeginFigure(pt, D2D1_FIGURE_BEGIN_HOLLOW);
-                else sink->AddLine(pt);
-                if (i == arcSegments) headPt = pt;
-            }
-            sink->EndFigure(D2D1_FIGURE_END_OPEN);
-            sink->Close();
+        pBrush->SetColor(sweepColor);
 
-            D2D1_COLOR_F sweepColor;
-            if (segment == 0) sweepColor = D2D1::ColorF(0.20f, 0.85f, 1.0f, 0.95f);
-            else if (segment == 1) sweepColor = D2D1::ColorF(1.0f, 0.85f, 0.35f, 1.0f);
-            else sweepColor = D2D1::ColorF(0.35f, 1.0f, 0.70f, 0.95f);
+        D2D1_POINT_2F prevPt = D2D1::Point2F(
+            center.x + trackRadius * std::cos(-AppConstants::Math::PI * 0.5f),
+            center.y + trackRadius * std::sin(-AppConstants::Math::PI * 0.5f)
+        );
+        D2D1_POINT_2F headPt = prevPt;
 
-            pBrush->SetColor(sweepColor);
-            pRT->DrawGeometry(arcGeom.Get(), pBrush, 4.0f * dpiScale);
-
-            // 头部发光微珠
-            pBrush->SetColor(D2D1::ColorF(sweepColor.r, sweepColor.g, sweepColor.b, 0.35f));
-            pRT->FillEllipse(D2D1::Ellipse(headPt, 6.5f * dpiScale, 6.5f * dpiScale), pBrush);
-            pBrush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f));
-            pRT->FillEllipse(D2D1::Ellipse(headPt, 3.0f * dpiScale, 3.0f * dpiScale), pBrush);
+        for (int i = 1; i <= arcSegments; ++i) {
+            float frac = (static_cast<float>(i) / arcSegments) * sweepFraction;
+            float angle = -AppConstants::Math::PI * 0.5f + frac * AppConstants::Math::PI * 2.0f;
+            D2D1_POINT_2F pt = D2D1::Point2F(
+                center.x + trackRadius * std::cos(angle),
+                center.y + trackRadius * std::sin(angle)
+            );
+            pRT->DrawLine(prevPt, pt, pBrush, 4.0f * dpiScale);
+            prevPt = pt;
+            if (i == arcSegments) headPt = pt;
         }
+
+        // 头部发光微珠
+        pBrush->SetColor(D2D1::ColorF(sweepColor.r, sweepColor.g, sweepColor.b, 0.35f));
+        pRT->FillEllipse(D2D1::Ellipse(headPt, 6.5f * dpiScale, 6.5f * dpiScale), pBrush);
+        pBrush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f));
+        pRT->FillEllipse(D2D1::Ellipse(headPt, 3.0f * dpiScale, 3.0f * dpiScale), pBrush);
     }
 
     // 4. 中心状态与大字号倒计时展示
@@ -630,18 +647,21 @@ void NeckExerciseRenderer::DrawCircularPacer(
 }
 
 void NeckExerciseRenderer::Render(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bounds, float dpiScale) {
+    RenderStatic(pRT, bounds, dpiScale);
+    RenderDynamic(pRT, bounds, dpiScale);
+}
+
+void NeckExerciseRenderer::RenderStatic(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bounds, float dpiScale) {
     if (!pRT) return;
 
     float w = bounds.right - bounds.left;
     float h = bounds.bottom - bounds.top;
     if (w <= 20.0f || h <= 20.0f) return;
 
-    // 1. 基于全屏响应式安全视口计算几何分区与动画缩放 (彻底解除 1.65 锁死)
     auto layout = ExerciseLayout::Calculate(bounds, dpiScale, 460.0f, 260.0f);
-    float animScale = layout.animScale;
     float uiScale = layout.dpiScale;
 
-    // 2. 全屏柔和微光半透明卡片背景
+    // 1. 全屏柔和微光半透明卡片背景
     D2D1_ROUNDED_RECT cardRect = D2D1::RoundedRect(
         D2D1::RectF(bounds.left + 4.0f, bounds.top + 4.0f, bounds.right - 4.0f, bounds.bottom - 4.0f),
         16.0f * uiScale, 16.0f * uiScale
@@ -655,17 +675,9 @@ void NeckExerciseRenderer::Render(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bou
         pRT->DrawRoundedRectangle(cardRect, pBrush.Get(), 1.0f * uiScale);
     }
 
-    // 3. 计算节律进度
-    float phaseTime = std::fmod(m_animTime, m_phaseDuration);
-    float tNorm = phaseTime / m_phaseDuration;
-    float ease = 0.0f;
-    int segment = 0;
-    float segProgress = 0.0f;
-    CalculateStretchPacing(tNorm, ease, segment, segProgress);
-
     auto& d2d = D2DContext::Instance();
 
-    // 4. Zone A: 顶部栏 Header (大字号 Badge 与动作指示)
+    // 2. Zone A: 顶部栏 Header (大字号 Badge 与动作指示)
     float badgeW = 190.0f * uiScale;
     float badgeH = 34.0f * uiScale;
     D2D1_ROUNDED_RECT badgeRect = D2D1::RoundedRect(
@@ -693,11 +705,11 @@ void NeckExerciseRenderer::Render(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bou
         auto fmtBadge = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 13.0f * uiScale, DWRITE_FONT_WEIGHT_BOLD);
         if (fmtBadge) {
             D2D1_RECT_F textRect = D2D1::RectF(dotX + dotSize + 8.0f * uiScale, badgeRect.rect.top + 6.0f * uiScale, badgeRect.rect.right, badgeRect.rect.bottom);
-            pRT->DrawTextW(L"🌿 动态解剖肌群导引", 10, fmtBadge.Get(), textRect, pBrush.Get());
+            pRT->DrawTextW(L"动态解剖肌群导引", 8, fmtBadge.Get(), textRect, pBrush.Get());
         }
     }
 
-    // 顶部右侧阶段概览 (优雅极简指示)
+    // 顶部右侧阶段概览 (动作指示)
     float pacerW = 160.0f * uiScale;
     float pacerH = 34.0f * uiScale;
     D2D1_ROUNDED_RECT pacerRect = D2D1::RoundedRect(
@@ -720,7 +732,7 @@ void NeckExerciseRenderer::Render(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bou
         }
     }
 
-    // 5. Zone B: 底部信息卡片 Guidance Dock (黄金分割双栏排版：左侧要领 + 右侧仪表盘)
+    // 3. Zone B: 底部信息卡片 Guidance Dock (静态要领底板与文案)
     std::wstring actionTitle, actionTip, subTip;
     switch (m_currentPhase) {
         case 0:
@@ -752,42 +764,40 @@ void NeckExerciseRenderer::Render(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bou
         pBrush->SetColor(D2D1::ColorF(0.18f, 0.65f, 0.45f, 0.45f));
         pRT->DrawRoundedRectangle(dockPlate, pBrush.Get(), 1.2f * uiScale);
 
-        // 左栏：动作要领与临床依据
         float dockInnerLeft = layout.dockLeftRect.left + 24.0f * uiScale;
         float dockInnerRight = layout.dockLeftRect.right - 12.0f * uiScale;
-        float currentY = layout.dockLeftRect.top + 14.0f * uiScale;
+        float currentY = layout.dockLeftRect.top + 18.0f * uiScale;
 
-        // 行 1：动作标题 (大字号 20 * uiScale，粗体纯白)
-        auto fmtTitle = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 20.0f * uiScale, DWRITE_FONT_WEIGHT_BOLD);
+        // 行 1：动作标题 (大字号 25.0f * uiScale，纯白加粗)
+        auto fmtTitle = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 25.0f * uiScale, DWRITE_FONT_WEIGHT_BOLD);
         if (fmtTitle) {
             pBrush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
-            D2D1_RECT_F titleRect = D2D1::RectF(dockInnerLeft, currentY, dockInnerRight, currentY + 28.0f * uiScale);
+            D2D1_RECT_F titleRect = D2D1::RectF(dockInnerLeft, currentY, dockInnerRight, currentY + 34.0f * uiScale);
             pRT->DrawTextW(actionTitle.c_str(), static_cast<UINT32>(actionTitle.length()), fmtTitle.Get(), titleRect, pBrush.Get());
+        }
+
+        currentY += 38.0f * uiScale;
+
+        // 行 2：动作要领 (大字号 18.5f * uiScale，翡翠青绿加粗)
+        auto fmtTip = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 18.5f * uiScale, DWRITE_FONT_WEIGHT_BOLD);
+        if (fmtTip) {
+            pBrush->SetColor(D2D1::ColorF(0.55f, 1.0f, 0.72f));
+            std::wstring fullTip = L"● 动作要领：" + actionTip;
+            D2D1_RECT_F tipRect = D2D1::RectF(dockInnerLeft, currentY, dockInnerRight, currentY + 28.0f * uiScale);
+            pRT->DrawTextW(fullTip.c_str(), static_cast<UINT32>(fullTip.length()), fmtTip.Get(), tipRect, pBrush.Get());
         }
 
         currentY += 32.0f * uiScale;
 
-        // 行 2：动作要领 (大字号 15 * uiScale，薄荷青绿)
-        auto fmtTip = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 15.0f * uiScale, DWRITE_FONT_WEIGHT_BOLD);
-        if (fmtTip) {
-            pBrush->SetColor(D2D1::ColorF(0.55f, 1.0f, 0.72f));
-            std::wstring fullTip = L"● 动作要领：" + actionTip;
-            D2D1_RECT_F tipRect = D2D1::RectF(dockInnerLeft, currentY, dockInnerRight, currentY + 24.0f * uiScale);
-            pRT->DrawTextW(fullTip.c_str(), static_cast<UINT32>(fullTip.length()), fmtTip.Get(), tipRect, pBrush.Get());
-        }
-
-        currentY += 26.0f * uiScale;
-
-        // 行 3：医学依据 (字号 13 * uiScale，淡青灰柔光呼吸色)
-        auto fmtSubTip = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 13.0f * uiScale, DWRITE_FONT_WEIGHT_REGULAR);
+        // 行 3：医学依据 (大字号 15.5f * uiScale，淡青灰呼吸色)
+        auto fmtSubTip = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 15.5f * uiScale, DWRITE_FONT_WEIGHT_REGULAR);
         if (fmtSubTip) {
             pBrush->SetColor(D2D1::ColorF(0.80f, 0.90f, 0.86f, 0.95f));
             std::wstring fullSubTip = L"● 医学依据：" + subTip;
-            D2D1_RECT_F subTipRect = D2D1::RectF(dockInnerLeft, currentY, dockInnerRight, layout.dockLeftRect.bottom - 10.0f * uiScale);
+            D2D1_RECT_F subTipRect = D2D1::RectF(dockInnerLeft, currentY, dockInnerRight, layout.dockLeftRect.bottom - 12.0f * uiScale);
             pRT->DrawTextW(fullSubTip.c_str(), static_cast<UINT32>(fullSubTip.length()), fmtSubTip.Get(), subTipRect, pBrush.Get());
         }
 
-        // 黄金分割分界线 (垂直微光细线)
         float divX = (layout.dockLeftRect.right + layout.dockRightRect.left) * 0.5f;
         pBrush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.12f));
         pRT->DrawLine(
@@ -797,11 +807,41 @@ void NeckExerciseRenderer::Render(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bou
             1.0f * uiScale
         );
 
-        // 右栏：动态环形节拍仪表盘 (彻底利用右侧空间，左右视觉达成平衡)
-        DrawCircularPacer(pRT, pBrush.Get(), layout.dockMeterCenter, layout.dockMeterRadius, uiScale, segment, segProgress, tNorm);
+        // 节拍器底座外发光环
+        pBrush->SetColor(D2D1::ColorF(0.02f, 0.05f, 0.09f, 0.85f));
+        pRT->FillEllipse(D2D1::Ellipse(layout.dockMeterCenter, layout.dockMeterRadius, layout.dockMeterRadius), pBrush.Get());
+        pBrush->SetColor(D2D1::ColorF(0.18f, 0.42f, 0.55f, 0.35f));
+        pRT->DrawEllipse(D2D1::Ellipse(layout.dockMeterCenter, layout.dockMeterRadius, layout.dockMeterRadius), pBrush.Get(), 1.2f * uiScale);
     }
+}
 
-    // 6. Zone C: 中央动画独立画布 Central Canvas (大幅面自适应缩放，解剖流线人偶)
+void NeckExerciseRenderer::RenderDynamic(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bounds, float dpiScale) {
+    if (!pRT) return;
+
+    float w = bounds.right - bounds.left;
+    float h = bounds.bottom - bounds.top;
+    if (w <= 20.0f || h <= 20.0f) return;
+
+    auto layout = ExerciseLayout::Calculate(bounds, dpiScale, 460.0f, 260.0f);
+    float animScale = layout.animScale;
+    float uiScale = layout.dpiScale;
+
+    // 计算节律进度
+    float phaseTime = std::fmod(m_animTime, m_phaseDuration);
+    float tNorm = phaseTime / m_phaseDuration;
+    float ease = 0.0f;
+    int segment = 0;
+    float segProgress = 0.0f;
+    CalculateStretchPacing(tNorm, ease, segment, segProgress);
+
+    auto& d2d = D2DContext::Instance();
+    ComPtr<ID2D1SolidColorBrush> pBrush;
+    pRT->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f), pBrush.GetAddressOf());
+
+    // 绘制动态节拍指示器
+    DrawCircularPacer(pRT, pBrush.Get(), layout.dockMeterCenter, layout.dockMeterRadius, uiScale, segment, segProgress, tNorm);
+
+    // 动态人偶
     float cx = layout.canvasCenterX;
     float cy = layout.canvasCenterY;
     float headRadius = 38.0f * animScale;

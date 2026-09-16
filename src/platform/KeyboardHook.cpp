@@ -1,5 +1,6 @@
 #include "KeyboardHook.hpp"
 
+#ifdef _WIN32
 bool KeyboardHook::Install(HWND hNotifyTarget) {
     if (m_hHook) return true;
     m_hNotifyTarget = hNotifyTarget;
@@ -13,6 +14,10 @@ void KeyboardHook::Uninstall() {
         m_hHook = nullptr;
         m_hNotifyTarget = nullptr;
     }
+}
+
+bool KeyboardHook::IsInstalled() const {
+    return m_hHook != nullptr;
 }
 
 LRESULT CALLBACK KeyboardHook::LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam) {
@@ -49,4 +54,18 @@ LRESULT CALLBACK KeyboardHook::LowLevelKeyboardProc(int nCode, WPARAM wParam, LP
     }
     return CallNextHookEx(nullptr, nCode, wParam, lParam);
 }
+#else
+// Linux 平台按键拦截（全屏遮罩时由 XGrabKeyboard 接管按键分发）
+bool KeyboardHook::Install(void* /*hNotifyTarget*/) {
+    m_installed = true;
+    return true;
+}
 
+void KeyboardHook::Uninstall() {
+    m_installed = false;
+}
+
+bool KeyboardHook::IsInstalled() const {
+    return m_installed;
+}
+#endif

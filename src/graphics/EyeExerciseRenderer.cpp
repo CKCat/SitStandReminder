@@ -47,31 +47,42 @@ void EyeExerciseRenderer::DrawBlinkingEye(
     float eyeH = 24.0f * scale * (1.0f - closeAmount * 0.88f);
 
     if (closeAmount >= 0.85f) {
-        // 仿生祥和闭目眼睑 (优雅微下垂弧线与微翘睫毛，彻底消除扁平白飞碟怪相)
+        // 仿生祥和闭目眼睑 (复用预烘焙基准几何体，消除 60FPS 渲染热路径堆分配)
         auto& d2d = D2DContext::Instance();
-        ComPtr<ID2D1PathGeometry> lidGeom;
-        d2d.GetD2DFactory()->CreatePathGeometry(lidGeom.GetAddressOf());
-        if (lidGeom) {
-            ComPtr<ID2D1GeometrySink> sink;
-            lidGeom->Open(sink.GetAddressOf());
-            D2D1_POINT_2F pLeft = D2D1::Point2F(eyeX - eyeW * 0.46f, eyeY - 2.0f * scale);
-            D2D1_POINT_2F pRight = D2D1::Point2F(eyeX + eyeW * 0.46f, eyeY - 2.0f * scale);
-            sink->BeginFigure(pLeft, D2D1_FIGURE_BEGIN_HOLLOW);
-            sink->AddBezier(D2D1::BezierSegment(
-                D2D1::Point2F(eyeX - eyeW * 0.20f, eyeY + 8.5f * scale),
-                D2D1::Point2F(eyeX + eyeW * 0.20f, eyeY + 8.5f * scale),
-                pRight
-            ));
-            sink->EndFigure(D2D1_FIGURE_END_OPEN);
-            sink->Close();
+        if (!m_baseLidGeom || std::abs(m_lastEyeW - eyeW) > 1e-3f || std::abs(m_lastEyeScale - scale) > 1e-3f) {
+            m_lastEyeW = eyeW;
+            m_lastEyeScale = scale;
+            m_baseLidGeom.Reset();
+            d2d.GetD2DFactory()->CreatePathGeometry(m_baseLidGeom.GetAddressOf());
+            if (m_baseLidGeom) {
+                ComPtr<ID2D1GeometrySink> sink;
+                m_baseLidGeom->Open(sink.GetAddressOf());
+                D2D1_POINT_2F pLeft = D2D1::Point2F(-eyeW * 0.46f, -2.0f * scale);
+                D2D1_POINT_2F pRight = D2D1::Point2F(eyeW * 0.46f, -2.0f * scale);
+                sink->BeginFigure(pLeft, D2D1_FIGURE_BEGIN_HOLLOW);
+                sink->AddBezier(D2D1::BezierSegment(
+                    D2D1::Point2F(-eyeW * 0.20f, 8.5f * scale),
+                    D2D1::Point2F(eyeW * 0.20f, 8.5f * scale),
+                    pRight
+                ));
+                sink->EndFigure(D2D1_FIGURE_END_OPEN);
+                sink->Close();
+            }
+        }
+        if (m_baseLidGeom) {
+            D2D1_MATRIX_3X2_F oldMat;
+            pRT->GetTransform(&oldMat);
+            pRT->SetTransform(D2D1::Matrix3x2F::Translation(eyeX, eyeY) * oldMat);
 
             // 柔和眼窝微光阴影
             pBrush->SetColor(D2D1::ColorF(0.20f, 0.65f, 0.88f, 0.35f));
-            pRT->DrawGeometry(lidGeom.Get(), pBrush, 4.0f * scale);
+            pRT->DrawGeometry(m_baseLidGeom.Get(), pBrush, 4.0f * scale);
 
             // 主眼睑闭合轮廓线
             pBrush->SetColor(D2D1::ColorF(0.80f, 0.95f, 1.0f, 0.95f));
-            pRT->DrawGeometry(lidGeom.Get(), pBrush, 2.4f * scale);
+            pRT->DrawGeometry(m_baseLidGeom.Get(), pBrush, 2.4f * scale);
+
+            pRT->SetTransform(oldMat);
 
             // 3 根自然微翘睫毛
             pBrush->SetColor(D2D1::ColorF(0.55f, 0.85f, 1.0f, 0.85f));
@@ -307,28 +318,7 @@ void EyeExerciseRenderer::DrawEyeCircularPacer(
     // 3. 动态进度扫掠弧线与巡航发光微珠
     float sweepFraction = std::clamp(tNorm, 0.0f, 1.0f);
     if (sweepFraction > 0.005f) {
-        ComPtr<ID2D1PathGeometry> arcGeom;
-        d2d.GetD2DFactory()->CreatePathGeometry(arcGeom.GetAddressOf());
-        if (arcGeom) {
-            ComPtr<ID2D1GeometrySink> sink;
-            arcGeom->Open(sink.GetAddressOf());
-
             const int arcSegments = static_cast<int>(sweepFraction * 72.0f) + 1;
-            D2D1_POINT_2F headPt = center;
-            for (int i = 0; i <= arcSegments; ++i) {
-                float frac = (static_cast<float>(i) / arcSegments) * sweepFraction;
-                float angle = -AppConstants::Math::PI * 0.5f + frac * AppConstants::Math::PI * 2.0f;
-                D2D1_POINT_2F pt = D2D1::Point2F(
-                    center.x + trackRadius * std::cos(angle),
-                    center.y + trackRadius * std::sin(angle)
-                );
-                if (i == 0) sink->BeginFigure(pt, D2D1_FIGURE_BEGIN_HOLLOW);
-                else sink->AddLine(pt);
-                if (i == arcSegments) headPt = pt;
-            }
-            sink->EndFigure(D2D1_FIGURE_END_OPEN);
-            sink->Close();
-
             D2D1_COLOR_F sweepColor;
             if (phase == 0) sweepColor = D2D1::ColorF(0.20f, 0.88f, 0.65f, 0.95f);
             else if (phase == 1) {
@@ -338,9 +328,25 @@ void EyeExerciseRenderer::DrawEyeCircularPacer(
             } else {
                 sweepColor = D2D1::ColorF(0.25f, 0.95f, 0.65f, 0.95f);
             }
-
             pBrush->SetColor(sweepColor);
-            pRT->DrawGeometry(arcGeom.Get(), pBrush, 4.0f * dpiScale);
+
+            D2D1_POINT_2F prevPt = D2D1::Point2F(
+                center.x + trackRadius * std::cos(-AppConstants::Math::PI * 0.5f),
+                center.y + trackRadius * std::sin(-AppConstants::Math::PI * 0.5f)
+            );
+            D2D1_POINT_2F headPt = prevPt;
+
+            for (int i = 1; i <= arcSegments; ++i) {
+                float frac = (static_cast<float>(i) / arcSegments) * sweepFraction;
+                float angle = -AppConstants::Math::PI * 0.5f + frac * AppConstants::Math::PI * 2.0f;
+                D2D1_POINT_2F pt = D2D1::Point2F(
+                    center.x + trackRadius * std::cos(angle),
+                    center.y + trackRadius * std::sin(angle)
+                );
+                pRT->DrawLine(prevPt, pt, pBrush, 4.0f * dpiScale);
+                prevPt = pt;
+                if (i == arcSegments) headPt = pt;
+            }
 
             // 头部发光微珠
             pBrush->SetColor(D2D1::ColorF(sweepColor.r, sweepColor.g, sweepColor.b, 0.35f));
@@ -348,7 +354,6 @@ void EyeExerciseRenderer::DrawEyeCircularPacer(
             pBrush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f, 1.0f));
             pRT->FillEllipse(D2D1::Ellipse(headPt, 3.0f * dpiScale, 3.0f * dpiScale), pBrush);
         }
-    }
 
     // 4. 文字与大字号实时倒计时
     if (phase == 0) {
@@ -380,10 +385,10 @@ void EyeExerciseRenderer::DrawEyeCircularPacer(
             pRT->DrawTextW(buf, static_cast<UINT32>(wcslen(buf)), fmtNum.Get(), rNum, pBrush);
         }
         std::wstring bLbl = (breathState == 0) ? L"深长吸气" : (breathState == 1 ? L"屏息舒压" : L"缓慢呼气");
-        auto fmtLbl = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 11.5f * dpiScale, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_TEXT_ALIGNMENT_CENTER, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
+        auto fmtLbl = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 14.0f * dpiScale, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_TEXT_ALIGNMENT_CENTER, DWRITE_PARAGRAPH_ALIGNMENT_CENTER);
         if (fmtLbl) {
             pBrush->SetColor(D2D1::ColorF(0.85f, 0.95f, 0.90f, 0.88f));
-            D2D1_RECT_F rLbl = D2D1::RectF(center.x - radius, center.y + 7.0f * dpiScale, center.x + radius, center.y + 24.0f * dpiScale);
+            D2D1_RECT_F rLbl = D2D1::RectF(center.x - radius, center.y + 6.0f * dpiScale, center.x + radius, center.y + 26.0f * dpiScale);
             pRT->DrawTextW(bLbl.c_str(), static_cast<UINT32>(bLbl.length()), fmtLbl.Get(), rLbl, pBrush);
         }
     } else {
@@ -407,15 +412,19 @@ void EyeExerciseRenderer::DrawEyeCircularPacer(
 }
 
 void EyeExerciseRenderer::Render(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bounds, float dpiScale) {
+    RenderStatic(pRT, bounds, dpiScale);
+    RenderDynamic(pRT, bounds, dpiScale);
+}
+
+void EyeExerciseRenderer::RenderStatic(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bounds, float dpiScale) {
     if (!pRT) return;
 
     float w = bounds.right - bounds.left;
     float h = bounds.bottom - bounds.top;
     if (w <= 20.0f || h <= 20.0f) return;
 
-    // 1. 基于全屏响应式安全视口计算几何分区与动画缩放 (彻底解除 1.35 锁死)
+    // 1. 基于全屏响应式安全视口计算几何分区与动画缩放
     auto layout = ExerciseLayout::Calculate(bounds, dpiScale, 520.0f, 280.0f);
-    float animScale = layout.animScale;
     float uiScale = layout.dpiScale;
 
     // 2. 全屏柔和微光半透明卡片背景
@@ -432,38 +441,7 @@ void EyeExerciseRenderer::Render(ID2D1RenderTarget* pRT, const D2D1_RECT_F& boun
         pRT->DrawRoundedRectangle(cardRect, pBrush.Get(), 1.0f * uiScale);
     }
 
-    float t = GetPhaseProgress();
     auto& d2d = D2DContext::Instance();
-
-    // 计算呼吸状态参数 (供呼吸环与节拍仪表盘同频调用)
-    float breathProgress = std::fmod(m_animTime, 10.0f) / 10.0f;
-    float breathExp = 0.0f;
-    int breathState = 0; // 0: 吸气, 1: 屏息, 2: 呼气
-    float breathRemain = 0.0f;
-    std::wstring breathText;
-    D2D1_COLOR_F breathColor;
-
-    if (breathProgress < 0.40f) {
-        breathState = 0;
-        float sub = breathProgress / 0.40f;
-        breathExp = 0.5f + 0.5f * static_cast<float>(std::sin(sub * AppConstants::Math::PI / 2.0f));
-        breathRemain = (0.40f - breathProgress) * 10.0f;
-        breathText = L"● 缓缓深深吸气 · 吸气 4 秒 · 充盈氧气";
-        breathColor = D2D1::ColorF(0.51f, 0.86f, 1.0f);
-    } else if (breathProgress < 0.60f) {
-        breathState = 1;
-        breathExp = 1.0f;
-        breathRemain = (0.60f - breathProgress) * 10.0f;
-        breathText = L"✨ 屏息静气 · 保持 2 秒 · 眼肌深度放松";
-        breathColor = D2D1::ColorF(1.0f, 0.90f, 0.43f);
-    } else {
-        breathState = 2;
-        float sub = (breathProgress - 0.60f) / 0.40f;
-        breathExp = 1.0f - 0.5f * static_cast<float>(std::sin(sub * AppConstants::Math::PI / 2.0f));
-        breathRemain = (1.0f - breathProgress) * 10.0f;
-        breathText = L"○ 慢慢缓缓呼出 · 呼气 4 秒 · 释放眼压";
-        breathColor = D2D1::ColorF(0.63f, 1.0f, 0.78f);
-    }
 
     // 3. Zone A: 顶部栏 Header (大字号 Badge 与步骤概览)
     float badgeW = 205.0f * uiScale;
@@ -492,7 +470,7 @@ void EyeExerciseRenderer::Render(ID2D1RenderTarget* pRT, const D2D1_RECT_F& boun
         auto fmtBadge = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 13.0f * uiScale, DWRITE_FONT_WEIGHT_BOLD);
         if (fmtBadge) {
             D2D1_RECT_F textRect = D2D1::RectF(dotX + dotSize + 8.0f * uiScale, badgeRect.rect.top + 6.0f * uiScale, badgeRect.rect.right, badgeRect.rect.bottom);
-            pRT->DrawTextW(L"👁️ 视网膜与眼外肌舒缓", 11, fmtBadge.Get(), textRect, pBrush.Get());
+            pRT->DrawTextW(L"视网膜与眼外肌舒缓", 9, fmtBadge.Get(), textRect, pBrush.Get());
         }
     }
 
@@ -549,35 +527,35 @@ void EyeExerciseRenderer::Render(ID2D1RenderTarget* pRT, const D2D1_RECT_F& boun
         // 左栏：要领文案
         float dockInnerLeft = layout.dockLeftRect.left + 24.0f * uiScale;
         float dockInnerRight = layout.dockLeftRect.right - 12.0f * uiScale;
-        float currentY = layout.dockLeftRect.top + 14.0f * uiScale;
+        float currentY = layout.dockLeftRect.top + 18.0f * uiScale;
 
-        // 行 1：动作标题 (大字号 20 * uiScale，粗体纯白)
-        auto fmtTitle = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 20.0f * uiScale, DWRITE_FONT_WEIGHT_BOLD);
+        // 行 1：动作标题 (大字号 25.0f * uiScale，纯白加粗)
+        auto fmtTitle = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 25.0f * uiScale, DWRITE_FONT_WEIGHT_BOLD);
         if (fmtTitle) {
             pBrush->SetColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
-            D2D1_RECT_F titleRect = D2D1::RectF(dockInnerLeft, currentY, dockInnerRight, currentY + 28.0f * uiScale);
+            D2D1_RECT_F titleRect = D2D1::RectF(dockInnerLeft, currentY, dockInnerRight, currentY + 34.0f * uiScale);
             pRT->DrawTextW(actionTitle.c_str(), static_cast<UINT32>(actionTitle.length()), fmtTitle.Get(), titleRect, pBrush.Get());
+        }
+
+        currentY += 38.0f * uiScale;
+
+        // 行 2：动作要领 (大字号 18.5f * uiScale，翡翠青绿加粗)
+        auto fmtTip = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 18.5f * uiScale, DWRITE_FONT_WEIGHT_BOLD);
+        if (fmtTip) {
+            pBrush->SetColor(D2D1::ColorF(0.55f, 1.0f, 0.72f));
+            std::wstring fullTip = L"● 动作要领：" + actionTip;
+            D2D1_RECT_F tipRect = D2D1::RectF(dockInnerLeft, currentY, dockInnerRight, currentY + 28.0f * uiScale);
+            pRT->DrawTextW(fullTip.c_str(), static_cast<UINT32>(fullTip.length()), fmtTip.Get(), tipRect, pBrush.Get());
         }
 
         currentY += 32.0f * uiScale;
 
-        // 行 2：动作要领 (大字号 15 * uiScale，翡翠青绿)
-        auto fmtTip = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 15.0f * uiScale, DWRITE_FONT_WEIGHT_BOLD);
-        if (fmtTip) {
-            pBrush->SetColor(D2D1::ColorF(0.55f, 1.0f, 0.72f));
-            std::wstring fullTip = L"● 动作要领：" + actionTip;
-            D2D1_RECT_F tipRect = D2D1::RectF(dockInnerLeft, currentY, dockInnerRight, currentY + 24.0f * uiScale);
-            pRT->DrawTextW(fullTip.c_str(), static_cast<UINT32>(fullTip.length()), fmtTip.Get(), tipRect, pBrush.Get());
-        }
-
-        currentY += 26.0f * uiScale;
-
-        // 行 3：医学依据 (字号 13 * uiScale，淡青灰呼吸色)
-        auto fmtSubTip = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 13.0f * uiScale, DWRITE_FONT_WEIGHT_REGULAR);
+        // 行 3：医学依据 (大字号 15.5f * uiScale，淡青灰呼吸色)
+        auto fmtSubTip = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 15.5f * uiScale, DWRITE_FONT_WEIGHT_REGULAR);
         if (fmtSubTip) {
             pBrush->SetColor(D2D1::ColorF(0.80f, 0.90f, 0.86f, 0.95f));
             std::wstring fullSubTip = L"● 医学依据：" + subTip;
-            D2D1_RECT_F subTipRect = D2D1::RectF(dockInnerLeft, currentY, dockInnerRight, layout.dockLeftRect.bottom - 10.0f * uiScale);
+            D2D1_RECT_F subTipRect = D2D1::RectF(dockInnerLeft, currentY, dockInnerRight, layout.dockLeftRect.bottom - 12.0f * uiScale);
             pRT->DrawTextW(fullSubTip.c_str(), static_cast<UINT32>(fullSubTip.length()), fmtSubTip.Get(), subTipRect, pBrush.Get());
         }
 
@@ -591,68 +569,128 @@ void EyeExerciseRenderer::Render(ID2D1RenderTarget* pRT, const D2D1_RECT_F& boun
             1.0f * uiScale
         );
 
-        // 右栏：动态环形节拍仪表盘 (彻底消除右侧留白)
+        // 节拍器底座外发光环与刻度导轨
+        pBrush->SetColor(D2D1::ColorF(0.02f, 0.05f, 0.09f, 0.85f));
+        pRT->FillEllipse(D2D1::Ellipse(layout.dockMeterCenter, layout.dockMeterRadius, layout.dockMeterRadius), pBrush.Get());
+        pBrush->SetColor(D2D1::ColorF(0.18f, 0.42f, 0.55f, 0.35f));
+        pRT->DrawEllipse(D2D1::Ellipse(layout.dockMeterCenter, layout.dockMeterRadius, layout.dockMeterRadius), pBrush.Get(), 1.2f * uiScale);
+
+        float trackRadius = layout.dockMeterRadius * 0.76f;
+        pBrush->SetColor(D2D1::ColorF(0.12f, 0.22f, 0.32f, 0.45f));
+        pRT->DrawEllipse(D2D1::Ellipse(layout.dockMeterCenter, trackRadius, trackRadius), pBrush.Get(), 3.5f * uiScale);
+    }
+
+    // Zone C: 法则一的静态指引文字 (大屏升级至 17.5px 粗体翡翠呼吸光)
+    if (m_currentPhase == 0 && pBrush) {
+        auto fmtMetric = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 17.5f * uiScale, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_TEXT_ALIGNMENT_CENTER);
+        if (fmtMetric) {
+            pBrush->SetColor(D2D1::ColorF(0.65f, 1.0f, 0.85f));
+            std::wstring metricText = L"● 视线完全移开屏幕 · 极目凝视窗外无限远景物 · 彻底放空睫状肌";
+            D2D1_RECT_F mRect = D2D1::RectF(layout.canvasRect.left, layout.canvasRect.bottom - 34.0f * uiScale, layout.canvasRect.right, layout.canvasRect.bottom);
+            pRT->DrawTextW(metricText.c_str(), static_cast<UINT32>(metricText.length()), fmtMetric.Get(), mRect, pBrush.Get());
+        }
+    }
+}
+
+void EyeExerciseRenderer::RenderDynamic(ID2D1RenderTarget* pRT, const D2D1_RECT_F& bounds, float dpiScale) {
+    if (!pRT) return;
+
+    float w = bounds.right - bounds.left;
+    float h = bounds.bottom - bounds.top;
+    if (w <= 20.0f || h <= 20.0f) return;
+
+    auto layout = ExerciseLayout::Calculate(bounds, dpiScale, 520.0f, 280.0f);
+    float animScale = layout.animScale;
+    float uiScale = layout.dpiScale;
+    float t = GetPhaseProgress();
+
+    auto& d2d = D2DContext::Instance();
+    ComPtr<ID2D1SolidColorBrush> pBrush;
+    pRT->CreateSolidColorBrush(D2D1::ColorF(1.0f, 1.0f, 1.0f), pBrush.GetAddressOf());
+
+    // 计算呼吸状态参数 (供呼吸环与节拍仪表盘同频调用)
+    float breathProgress = std::fmod(m_animTime, 10.0f) / 10.0f;
+    float breathExp = 0.0f;
+    int breathState = 0; // 0: 吸气, 1: 屏息, 2: 呼气
+    float breathRemain = 0.0f;
+
+    if (breathProgress < 0.40f) {
+        breathState = 0;
+        float sub = breathProgress / 0.40f;
+        breathExp = 0.5f + 0.5f * static_cast<float>(std::sin(sub * AppConstants::Math::PI / 2.0f));
+        breathRemain = (0.40f - breathProgress) * 10.0f;
+    } else if (breathProgress < 0.60f) {
+        breathState = 1;
+        breathExp = 1.0f;
+        breathRemain = (0.60f - breathProgress) * 10.0f;
+    } else {
+        breathState = 2;
+        float sub = (breathProgress - 0.60f) / 0.40f;
+        breathExp = 1.0f - 0.5f * static_cast<float>(std::sin(sub * AppConstants::Math::PI / 2.0f));
+        breathRemain = (1.0f - breathProgress) * 10.0f;
+    }
+
+    // 右栏：动态环形节拍仪表盘
+    if (pBrush) {
         DrawEyeCircularPacer(pRT, pBrush.Get(), layout.dockMeterCenter, layout.dockMeterRadius, uiScale, m_currentPhase, t, breathState, breathRemain);
     }
 
-    // 5. Zone C: 中央动画独立视口 Central Canvas (彻底杜绝任何穿透与重叠)
+    // 5. Zone C: 中央动画独立视口 Central Canvas
     float cx = layout.canvasCenterX;
     float cy = layout.canvasCenterY;
     float cw = layout.canvasRect.right - layout.canvasRect.left;
     float ch = layout.canvasRect.bottom - layout.canvasRect.top;
 
     if (m_currentPhase == 0) {
-        // 法则一：向外无限扩散的深空景深漫射场 (彻底抹除刺眼中心靶心白点，神经视觉深度放松)
+        // 法则一：向外无限扩散的深空景深漫射场
         DrawCosmicExpansion(pRT, pBrush.Get(), cx, cy, cw, ch, animScale, t);
-
-        // 画布底部纯净安全指引文字 (完全在扩散区域之外)
-        if (pBrush) {
-            auto fmtMetric = d2d.GetCachedTextFormat(L"Microsoft YaHei UI", 13.5f * uiScale, DWRITE_FONT_WEIGHT_BOLD, DWRITE_FONT_STYLE_NORMAL, DWRITE_TEXT_ALIGNMENT_CENTER);
-            if (fmtMetric) {
-                pBrush->SetColor(D2D1::ColorF(0.65f, 1.0f, 0.85f));
-                std::wstring metricText = L"● 视线完全移开屏幕 · 极目凝视窗外无限远景物 · 彻底放空睫状肌";
-                D2D1_RECT_F mRect = D2D1::RectF(layout.canvasRect.left, layout.canvasRect.bottom - 28.0f * uiScale, layout.canvasRect.right, layout.canvasRect.bottom);
-                pRT->DrawTextW(metricText.c_str(), static_cast<UINT32>(metricText.length()), fmtMetric.Get(), mRect, pBrush.Get());
-            }
-        }
     } else if (m_currentPhase == 1) {
-        // 法则二：仿生闭目眼睑与多层水母呼吸光晕 (RadialGradientBrush 连续柔光羽化，彻底杜绝煎蛋同心圆)
+        // 法则二：仿生闭目眼睑与多层水母呼吸光晕
         DrawBreathingHalo(pRT, pBrush.Get(), cx, cy - 8.0f * animScale, animScale, breathExp, breathState, breathProgress);
-        // (保持中央画布空灵冥想体验，指引信息统一归口于底部 Dock 与精密节拍仪)
     } else {
-        // 法则三：全屏大视野 ∞ 轨道视线追踪 (扩展纵横比至 2.2:1，上下眼外肌全向彻底拉伸)
+        // 法则三：全屏大视野 ∞ 轨道视线追踪
         float orbitCenterY = cy + 10.0f * animScale;
         float trackWidth = (std::min)(cw * 0.44f, 480.0f * animScale);
         float trackHeight = (std::min)(ch * 0.40f, 260.0f * animScale);
 
-        // 绘制发光 ∞ 双纽线轨道 (双层柔光微轨)
-        if (pBrush) {
-            ComPtr<ID2D1PathGeometry> pathGeom;
-            d2d.GetD2DFactory()->CreatePathGeometry(pathGeom.GetAddressOf());
-            if (pathGeom) {
+        if (!m_baseInfinityGeom || std::abs(m_lastInfinityWidth - trackWidth) > 1e-3f || std::abs(m_lastInfinityHeight - trackHeight) > 1e-3f) {
+            m_lastInfinityWidth = trackWidth;
+            m_lastInfinityHeight = trackHeight;
+            m_baseInfinityGeom.Reset();
+            d2d.GetD2DFactory()->CreatePathGeometry(m_baseInfinityGeom.GetAddressOf());
+            if (m_baseInfinityGeom) {
                 ComPtr<ID2D1GeometrySink> sink;
-                pathGeom->Open(sink.GetAddressOf());
+                m_baseInfinityGeom->Open(sink.GetAddressOf());
 
                 const int numPoints = 160;
                 for (int i = 0; i < numPoints; ++i) {
                     float angle = (static_cast<float>(i) / numPoints) * AppConstants::Math::PI * 2.0f;
                     float denom = 1.0f + static_cast<float>(std::sin(angle) * std::sin(angle));
-                    float px = cx + (trackWidth * static_cast<float>(std::cos(angle))) / denom;
-                    float py = orbitCenterY + (trackHeight * static_cast<float>(std::sin(angle) * std::cos(angle))) / denom;
+                    float px = (static_cast<float>(std::cos(angle)) / denom) * trackWidth;
+                    float py = (static_cast<float>(std::sin(angle) * static_cast<float>(std::cos(angle))) / denom) * trackHeight;
                     if (i == 0) sink->BeginFigure(D2D1::Point2F(px, py), D2D1_FIGURE_BEGIN_HOLLOW);
                     else sink->AddLine(D2D1::Point2F(px, py));
                 }
                 sink->EndFigure(D2D1_FIGURE_END_CLOSED);
                 sink->Close();
-
-                // 外层漫射柔光轨
-                pBrush->SetColor(D2D1::ColorF(0.18f, 0.85f, 0.60f, 0.12f));
-                pRT->DrawGeometry(pathGeom.Get(), pBrush.Get(), 6.0f * animScale);
-
-                // 内层清晰导引轨
-                pBrush->SetColor(D2D1::ColorF(0.24f, 0.90f, 0.65f, 0.42f));
-                pRT->DrawGeometry(pathGeom.Get(), pBrush.Get(), 2.2f * animScale);
             }
+        }
+
+        if (m_baseInfinityGeom && pBrush) {
+            D2D1_MATRIX_3X2_F oldMat;
+            pRT->GetTransform(&oldMat);
+            D2D1_MATRIX_3X2_F infMat = D2D1::Matrix3x2F::Translation(cx, orbitCenterY);
+            pRT->SetTransform(infMat * oldMat);
+
+            // 外层漫射柔光轨 (消除非等比拉伸线宽失真，等比保真 6.0f * animScale)
+            pBrush->SetColor(D2D1::ColorF(0.18f, 0.85f, 0.60f, 0.12f));
+            pRT->DrawGeometry(m_baseInfinityGeom.Get(), pBrush.Get(), 6.0f * animScale);
+
+            // 内层清晰导引轨 (等比保真 2.2f * animScale)
+            pBrush->SetColor(D2D1::ColorF(0.24f, 0.90f, 0.65f, 0.42f));
+            pRT->DrawGeometry(m_baseInfinityGeom.Get(), pBrush.Get(), 2.2f * animScale);
+
+            pRT->SetTransform(oldMat);
         }
 
         // 翡翠彗星头部与 18 阶粒子柔光拖尾
@@ -662,7 +700,6 @@ void EyeExerciseRenderer::Render(ID2D1RenderTarget* pRT, const D2D1_RECT_F& boun
         float targetY = orbitCenterY + (trackHeight * static_cast<float>(std::sin(moveAngle) * std::cos(moveAngle))) / denomHead;
 
         if (pBrush) {
-            // 18 阶渐隐彗尾粒子
             for (int trail = 18; trail >= 1; --trail) {
                 float trailAngle = moveAngle - trail * 0.034f;
                 float denomTrail = 1.0f + static_cast<float>(std::sin(trailAngle) * std::sin(trailAngle));
@@ -675,7 +712,6 @@ void EyeExerciseRenderer::Render(ID2D1RenderTarget* pRT, const D2D1_RECT_F& boun
                 pRT->FillEllipse(D2D1::Ellipse(D2D1::Point2F(tx, ty), tRadius / 2.0f, tRadius / 2.0f), pBrush.Get());
             }
 
-            // 彗星头部多层辉光核 (消灭刺眼锐角，诱导注视眼球平滑追随)
             pBrush->SetColor(D2D1::ColorF(0.18f, 1.0f, 0.60f, 0.25f));
             pRT->FillEllipse(D2D1::Ellipse(D2D1::Point2F(targetX, targetY), 28.0f * animScale, 28.0f * animScale), pBrush.Get());
 

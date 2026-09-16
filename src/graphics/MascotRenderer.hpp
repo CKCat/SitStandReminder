@@ -1,14 +1,9 @@
 #pragma once
 
-#include <d2d1.h>
-#include <d2d1helper.h>
-#include <dwrite.h>
-#include <wrl/client.h>
+#include "D2DCompat.hpp"
 #include <string>
 #include "../core/ConfigManager.hpp"
 #include "../core/StateMachine.hpp"
-
-using Microsoft::WRL::ComPtr;
 
 class MascotRenderer {
 public:

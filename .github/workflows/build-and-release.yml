@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-windows:
     name: Build & Test (Windows x64)
     runs-on: windows-latest
 
@@ -28,7 +28,7 @@ jobs:
 
       - name: Configure CMake
         run: |
-          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+          cmake -B build -S . -DCMAKE_MSVC_RUNTIME_LIBRARY="MultiThreaded$<$<CONFIG:Debug>:Debug>"
 
       - name: Build Release Binaries
         run: |
@@ -36,7 +36,7 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          .\build\tests\Release\UnitTests.exe
+          ctest --test-dir build -C Release --output-on-failure
 
       - name: Package Release Assets
         id: package
@@ -68,13 +68,103 @@ jobs:
             SitStandReminder-Windows-x64.zip.sha256
           if-no-files-found: error
 
+  build-linux:
+    name: Build & Test (Linux x64)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libx11-dev libfreetype6-dev libfontconfig1-dev libdbus-1-dev pkg-config xvfb dbus-x11
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Release Binaries
+        run: |
+          cmake --build build --config Release --parallel
+
+      - name: Run Automated Tests
+        run: |
+          dbus-run-session xvfb-run -s "-screen 0 1920x1080x24+32" ctest --test-dir build --output-on-failure
+
+      - name: Package Release Assets
+        run: |
+          # 1. 生成 Debian (.deb) 安装包
+          cpack --config build/CPackConfig.cmake -B deb_dist
+          cp deb_dist/SitStandReminder-Linux-x64.deb .
+          sha256sum SitStandReminder-Linux-x64.deb > SitStandReminder-Linux-x64.deb.sha256
+          echo "DEB package created: SitStandReminder-Linux-x64.deb"
+
+          # 2. 生成单文件可执行程序 (Single Standalone Binary)
+          cp build/SitStandReminder SitStandReminder-Linux-x64
+          chmod +x SitStandReminder-Linux-x64
+          sha256sum SitStandReminder-Linux-x64 > SitStandReminder-Linux-x64.sha256
+          echo "Single standalone binary created: SitStandReminder-Linux-x64"
+
+          # 3. 生成便携压缩包 (.tar.gz，含二进制、图标与桌面入口)
+          distDir="dist/SitStandReminder"
+          mkdir -p "$distDir"
+          cp build/SitStandReminder "$distDir/"
+          chmod +x "$distDir/SitStandReminder"
+          cp README.md "$distDir/"
+          cp resources/SitStandReminder.desktop "$distDir/"
+          cp resources/sitstandreminder.png "$distDir/"
+          
+          tarName="SitStandReminder-Linux-x64.tar.gz"
+          tar -czf "$tarName" -C "$distDir" .
+          sha256sum "$tarName" > "$tarName.sha256"
+          echo "Portable tar.gz created: $tarName"
+
+          # 列出所有打包资产与校验和
+          ls -lh SitStandReminder-Linux-x64*
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: SitStandReminder-Linux-x64
+          path: |
+            SitStandReminder-Linux-x64.deb
+            SitStandReminder-Linux-x64.deb.sha256
+            SitStandReminder-Linux-x64.tar.gz
+            SitStandReminder-Linux-x64.tar.gz.sha256
+            SitStandReminder-Linux-x64
+            SitStandReminder-Linux-x64.sha256
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: [build-windows, build-linux]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          merge-multiple: true
+
+      - name: Display downloaded files
+        run: ls -lh release-assets/
+
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            SitStandReminder-Windows-x64.zip
-            SitStandReminder-Windows-x64.zip.sha256
+            release-assets/SitStandReminder-Windows-x64.zip
+            release-assets/SitStandReminder-Windows-x64.zip.sha256
+            release-assets/SitStandReminder-Linux-x64.deb
+            release-assets/SitStandReminder-Linux-x64.deb.sha256
+            release-assets/SitStandReminder-Linux-x64.tar.gz
+            release-assets/SitStandReminder-Linux-x64.tar.gz.sha256
+            release-assets/SitStandReminder-Linux-x64
+            release-assets/SitStandReminder-Linux-x64.sha256
           generate_release_notes: true
           draft: false
           prerelease: false

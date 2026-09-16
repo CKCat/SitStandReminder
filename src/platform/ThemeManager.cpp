@@ -1,9 +1,7 @@
 #include "ThemeManager.hpp"
-#include <uxtheme.h>
 
-ThemeManager::ThemeManager() {
-    Refresh();
-}
+#ifdef _WIN32
+#include <uxtheme.h>
 
 bool ThemeManager::IsSystemDark() const {
     HKEY hKey = nullptr;
@@ -33,6 +31,135 @@ bool ThemeManager::IsTaskbarDark() const {
         RegCloseKey(hKey);
     }
     return (systemUsesLightTheme == 0);
+}
+
+enum class PreferredAppMode {
+    Default,
+    AllowDark,
+    ForceDark,
+    ForceLight,
+    Max
+};
+
+using fnSetPreferredAppMode = PreferredAppMode(WINAPI*)(PreferredAppMode appMode);
+using fnAllowDarkModeForWindow = bool(WINAPI*)(HWND hWnd, bool allow);
+using fnFlushMenuThemes = void(WINAPI*)();
+
+void ThemeManager::ApplyThemeToWindow(HWND hwnd) const {
+    if (!hwnd) return;
+    BOOL darkMode = m_isDark ? TRUE : FALSE;
+    // 1. 优先调用 Windows 10 20H1+ 及 Windows 11 标准属性 (20)
+    if (FAILED(DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &darkMode, sizeof(darkMode)))) {
+        // 回退调用 Windows 10 1809~1909 属性 (19)
+        DwmSetWindowAttribute(hwnd, 19, &darkMode, sizeof(darkMode));
+    }
+
+    // 2. Windows 11 原生硬件级圆角与抗锯齿阴影注入 (DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2)
+    DWORD cornerPref = 2; // DWMWCP_ROUND
+    DwmSetWindowAttribute(hwnd, 33 /* DWMWA_WINDOW_CORNER_PREFERENCE */, &cornerPref, sizeof(cornerPref));
+
+    HMODULE hUxtheme = GetModuleHandleW(L"uxtheme.dll");
+    if (!hUxtheme) hUxtheme = LoadLibraryExW(L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    if (hUxtheme) {
+        auto pAllowDarkModeForWindow = reinterpret_cast<fnAllowDarkModeForWindow>(GetProcAddress(hUxtheme, MAKEINTRESOURCEA(133)));
+        if (pAllowDarkModeForWindow) {
+            pAllowDarkModeForWindow(hwnd, m_isDark);
+        }
+        auto pSetPreferredAppMode = reinterpret_cast<fnSetPreferredAppMode>(GetProcAddress(hUxtheme, MAKEINTRESOURCEA(135)));
+        if (pSetPreferredAppMode) {
+            pSetPreferredAppMode(m_isDark ? PreferredAppMode::ForceDark : PreferredAppMode::ForceLight);
+        }
+        auto pFlushMenuThemes = reinterpret_cast<fnFlushMenuThemes>(GetProcAddress(hUxtheme, MAKEINTRESOURCEA(136)));
+        if (pFlushMenuThemes) {
+            pFlushMenuThemes();
+        }
+    }
+
+    SetWindowTheme(hwnd, m_isDark ? L"DarkMode_Explorer" : L"Explorer", nullptr);
+}
+
+#else
+// Linux / X11 系统深浅色感知 (带 5 秒 TTL 缓存，杜绝高频 popen/fork 开销)
+#include <cstdio>
+#include <cstdlib>
+#include <string>
+#include <chrono>
+
+static bool CheckLinuxDarkTheme() {
+    static bool s_cachedDark = true;
+    static auto s_lastCheck = std::chrono::steady_clock::time_point{};
+    auto now = std::chrono::steady_clock::now();
+    if (s_lastCheck.time_since_epoch().count() > 0 &&
+        std::chrono::duration_cast<std::chrono::seconds>(now - s_lastCheck).count() < 5) {
+        return s_cachedDark;
+    }
+    s_lastCheck = now;
+
+    // 1. 优先读取环境变量，零开销
+    const char* gtkTheme = std::getenv("GTK_THEME");
+    if (gtkTheme) {
+        std::string gt(gtkTheme);
+        if (gt.find("dark") != std::string::npos || gt.find("Dark") != std::string::npos) {
+            s_cachedDark = true;
+            return true;
+        }
+        if (gt.find("light") != std::string::npos || gt.find("Light") != std::string::npos) {
+            s_cachedDark = false;
+            return false;
+        }
+    }
+
+    // 2. 检测 GNOME / FreeDesktop portal 颜色方案
+    FILE* fp = popen("gsettings get org.gnome.desktop.interface color-scheme 2>/dev/null", "r");
+    if (fp) {
+        char buf[128];
+        if (fgets(buf, sizeof(buf), fp)) {
+            pclose(fp);
+            std::string out(buf);
+            if (out.find("prefer-dark") != std::string::npos) {
+                s_cachedDark = true;
+                return true;
+            }
+            if (out.find("prefer-light") != std::string::npos) {
+                s_cachedDark = false;
+                return false;
+            }
+        } else {
+            pclose(fp);
+        }
+    }
+
+    // 3. 检测 Linux Mint Cinnamon / MATE 主题
+    fp = popen("gsettings get org.cinnamon.desktop.interface gtk-theme 2>/dev/null", "r");
+    if (fp) {
+        char buf[128];
+        if (fgets(buf, sizeof(buf), fp)) {
+            pclose(fp);
+            std::string out(buf);
+            if (out.find("dark") != std::string::npos || out.find("Dark") != std::string::npos) {
+                s_cachedDark = true;
+                return true;
+            }
+        } else {
+            pclose(fp);
+        }
+    }
+
+    s_cachedDark = true; // 默认采用工效护眼暗色模式
+    return s_cachedDark;
+}
+
+bool ThemeManager::IsSystemDark() const {
+    return CheckLinuxDarkTheme();
+}
+
+bool ThemeManager::IsTaskbarDark() const {
+    return IsSystemDark();
+}
+#endif
+
+ThemeManager::ThemeManager() {
+    Refresh();
 }
 
 bool ThemeManager::IsEffectiveDark() const {
@@ -82,49 +209,3 @@ void ThemeManager::UpdateColors() {
         m_colors.accent         = D2D1::ColorF(0.15f, 0.45f, 0.90f, 1.0f);
     }
 }
-
-enum class PreferredAppMode {
-    Default,
-    AllowDark,
-    ForceDark,
-    ForceLight,
-    Max
-};
-
-using fnSetPreferredAppMode = PreferredAppMode(WINAPI*)(PreferredAppMode appMode);
-using fnAllowDarkModeForWindow = bool(WINAPI*)(HWND hWnd, bool allow);
-using fnFlushMenuThemes = void(WINAPI*)();
-
-void ThemeManager::ApplyThemeToWindow(HWND hwnd) const {
-    if (!hwnd) return;
-    BOOL darkMode = m_isDark ? TRUE : FALSE;
-    // 1. 优先调用 Windows 10 20H1+ 及 Windows 11 标准属性 (20)
-    if (FAILED(DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &darkMode, sizeof(darkMode)))) {
-        // 回退调用 Windows 10 1809~1909 属性 (19)
-        DwmSetWindowAttribute(hwnd, 19, &darkMode, sizeof(darkMode));
-    }
-
-    // 2. Windows 11 原生硬件级圆角与抗锯齿阴影注入 (DWMWA_WINDOW_CORNER_PREFERENCE = 33, DWMWCP_ROUND = 2)
-    DWORD cornerPref = 2; // DWMWCP_ROUND
-    DwmSetWindowAttribute(hwnd, 33 /* DWMWA_WINDOW_CORNER_PREFERENCE */, &cornerPref, sizeof(cornerPref));
-
-    HMODULE hUxtheme = GetModuleHandleW(L"uxtheme.dll");
-    if (!hUxtheme) hUxtheme = LoadLibraryExW(L"uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
-    if (hUxtheme) {
-        auto pAllowDarkModeForWindow = reinterpret_cast<fnAllowDarkModeForWindow>(GetProcAddress(hUxtheme, MAKEINTRESOURCEA(133)));
-        if (pAllowDarkModeForWindow) {
-            pAllowDarkModeForWindow(hwnd, m_isDark);
-        }
-        auto pSetPreferredAppMode = reinterpret_cast<fnSetPreferredAppMode>(GetProcAddress(hUxtheme, MAKEINTRESOURCEA(135)));
-        if (pSetPreferredAppMode) {
-            pSetPreferredAppMode(m_isDark ? PreferredAppMode::ForceDark : PreferredAppMode::ForceLight);
-        }
-        auto pFlushMenuThemes = reinterpret_cast<fnFlushMenuThemes>(GetProcAddress(hUxtheme, MAKEINTRESOURCEA(136)));
-        if (pFlushMenuThemes) {
-            pFlushMenuThemes();
-        }
-    }
-
-    SetWindowTheme(hwnd, m_isDark ? L"DarkMode_Explorer" : L"Explorer", nullptr);
-}
-
