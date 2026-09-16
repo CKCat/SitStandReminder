@@ -62,7 +62,11 @@ public:
 
     void Destroy();
     void UpdateTooltip(const std::wstring& text);
+#ifdef _WIN32
+    void ShowBalloon(const std::wstring& title, const std::wstring& msg, DWORD flags = 0);
+#else
     void ShowBalloon(const std::wstring& title, const std::wstring& msg, uint32_t flags = 0);
+#endif
     void UpdateDynamicIcon(AppState state, int remainingSec, int totalSec, const std::wstring& tooltip = L"");
     void RefreshTrayDisplayMode();
     bool IsMenuVisible() const {
@@ -72,11 +76,13 @@ public:
         return m_menuVisible;
 #endif
     }
+#ifndef _WIN32
     void HideMenu();
     int GetMenuItemAt(int my) const;
     D2D1_RECT_F GetMenuItemRect(size_t index) const;
     const std::vector<TrayMenuItem>& GetMenuItems() const { return m_menuItems; }
     void ExecuteCommand(uint32_t cmdId);
+#endif
 
 private:
     TrayWindow() = default;

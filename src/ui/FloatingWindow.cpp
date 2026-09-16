@@ -7,6 +7,7 @@
 #endif
 #include "FloatingWindow.hpp"
 #include "TrayWindow.hpp"
+#include "SettingsWindow.hpp"
 #include "../graphics/D2DContext.hpp"
 #include "../graphics/MascotRenderer.hpp"
 #include "../core/ConfigManager.hpp"

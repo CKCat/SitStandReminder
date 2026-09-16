@@ -1,13 +1,15 @@
 #include "ConfigManager.hpp"
+#include <map>
+#include <string>
+#include <fstream>
+#include <sstream>
+#include <istream>
 
 #ifdef _WIN32
 #include <shlwapi.h>
 #else
 #include <cstdlib>
 #include <filesystem>
-#include <fstream>
-#include <sstream>
-#include <map>
 #include <unistd.h>
 
 static std::filesystem::path GetLinuxConfigDir() {

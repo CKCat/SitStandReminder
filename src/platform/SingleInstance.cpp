@@ -38,6 +38,10 @@ void SingleInstance::WakeExistingInstance() {
     }
 }
 
+bool SingleInstance::CheckAndResetWakeRequested() {
+    return false;
+}
+
 #else
 // Linux 平台基于 flock 文件排他锁与 SIGUSR1 单实例唤醒
 #include <sys/file.h>

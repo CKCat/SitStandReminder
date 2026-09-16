@@ -87,6 +87,7 @@ private:
     HWND m_hLblTheme = nullptr;
     HWND m_hLblMascot = nullptr;
     HWND m_hLblTray = nullptr;
+    HWND m_hLblBorderWidth = nullptr;
     HWND m_hBorderWidthCombo = nullptr;
 
     HWND m_hWorkMinEdit = nullptr;

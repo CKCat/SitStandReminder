@@ -76,6 +76,7 @@ private:
   void OnAnimationTick();
   void UpdateHoverTimerState();
 
+  HINSTANCE m_hInstance = nullptr;
   HWND m_hwnd = nullptr;
   ComPtr<ID2D1DCRenderTarget> m_pDCRenderTarget;
   ComPtr<ID2D1SolidColorBrush> m_pBrush;
